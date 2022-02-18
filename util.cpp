@@ -195,7 +195,7 @@ Eigen::Vector4f computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &p2,
     return Eigen::Vector4f(f1, f2, f3, dn);
 }
 
-uint32_t murmurhash3(const uint32_t *key, uint32_t len, uint32_t seed) {
+uint32_t murmurhash3(const int *key, uint32_t len, uint32_t seed) {
     static const uint32_t c1      = 0xcc9e2d51;
     static const uint32_t c2      = 0x1b873593;
     static const uint32_t r1      = 15;
@@ -243,9 +243,8 @@ uint32_t murmurhash3(const uint32_t *key, uint32_t len, uint32_t seed) {
 }
 
 uint32_t hashPPF(const Eigen::Vector4f &ppfValue, float angleRadians, float distanceStep) {
-    const uint32_t key[ 4 ] = {int(ppfValue[ 0 ] / angleRadians), int(ppfValue[ 1 ] / angleRadians),
-                               int(ppfValue[ 2 ] / angleRadians),
-                               int(ppfValue[ 3 ] / distanceStep)};
+    const int key[ 4 ] = {int(ppfValue[ 0 ] / angleRadians), int(ppfValue[ 1 ] / angleRadians),
+                          int(ppfValue[ 2 ] / angleRadians), int(ppfValue[ 3 ] / distanceStep)};
 
     return murmurhash3(key, 16, 42);
 }
