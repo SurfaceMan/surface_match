@@ -24,32 +24,12 @@ public:
     Eigen::Vector3f min;
     Eigen::Vector3f max;
 
-    BoundingBox()
-        : min(Eigen::Vector3f::Zero())
-        , max(Eigen::Vector3f::Zero()) {
-    }
+    BoundingBox();
+    BoundingBox(Eigen::Vector3f min, Eigen::Vector3f max);
+    BoundingBox &operator=(const BoundingBox &rhs);
 
-    BoundingBox(Eigen::Vector3f min_, Eigen::Vector3f max_)
-        : min(min_)
-        , max(max_) {
-    }
-
-    BoundingBox &operator=(const BoundingBox &rhs) {
-        if (this != &rhs) {
-            this->min = rhs.min;
-            this->max = rhs.max;
-        }
-
-        return *this;
-    }
-
-    Eigen::Vector3f size() const {
-        return max - min;
-    }
-
-    float diameter() const {
-        return size().norm();
-    }
+    Eigen::Vector3f size() const;
+    float           diameter() const;
 };
 
 struct PointCloud {
@@ -71,20 +51,10 @@ public:
     int   yBins;
     int   zBins;
 
-    BoxGrid()
-        : step(0)
-        , xBins(0)
-        , yBins(0)
-        , zBins(0) {
-    }
+    BoxGrid();
 
-    int grid2Index(const Eigen::Vector3i &index_)const {
-        return index[ index_.x() ][ index_.y() ][ index_.z() ];
-    }
-
-    Eigen::Vector3i index2Grid(int index)const {
-        return grid[ index ];
-    }
+    int             grid2Index(const Eigen::Vector3i &grid) const;
+    Eigen::Vector3i index2Grid(int index) const;
 };
 
 struct Pose {
@@ -95,26 +65,11 @@ public:
     Eigen::AngleAxisf  r;
     Eigen::Quaternionf q;
 
-    Pose(float votes)
-        : numVotes(votes){};
+    Pose(float votes);
 
-    void updatePose(const Eigen::Matrix4f &newPose) {
-        pose = newPose;
-
-        auto rMatrix = pose.rotation();
-        r            = rMatrix;
-        q            = rMatrix;
-    }
-
-    void updatePoseT(const Eigen::Vector3f &t) {
-        pose.translation() = t;
-    }
-
-    void updatePoseQuat(const Eigen::Quaternionf &q_) {
-        q             = q_;
-        r             = q.matrix();
-        pose.linear() = q.matrix();
-    }
+    void updatePose(const Eigen::Matrix4f &newPose);
+    void updatePoseT(const Eigen::Vector3f &t);
+    void updatePoseQuat(const Eigen::Quaternionf &q);
 };
 
 } // namespace ppf
