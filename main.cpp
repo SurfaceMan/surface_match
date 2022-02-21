@@ -1,22 +1,23 @@
 #include <helper.h>
+#include <icp.h>
 #include <ppf.h>
 #include <util.h>
 
-int main(int argc, char *argv[]) {
+int main2(int argc, char *argv[]) {
     auto model = ppf::loadText(argv[ 1 ]);
     auto scene = ppf::loadText(argv[ 2 ]);
 
     ppf::Detector detector;
     {
         ppf::Timer t("train model");
-        detector.trainModel(model);
+        detector.trainModel(model, 0.02);
     }
 
     std::vector<Eigen::Matrix4f> pose;
     std::vector<float>           score;
     {
         ppf::Timer t("match scene");
-        detector.matchScene(scene, pose, score);
+        detector.matchScene(scene, pose, score, 0.02);
     }
 
     auto pc = ppf::transformPointCloud(model, pose[ 0 ]);
@@ -24,4 +25,21 @@ int main(int argc, char *argv[]) {
 
     std::cout << pose[ 0 ] << std::endl;
     std::cout << score[ 0 ] << std::endl;
+}
+
+int main(int argc, char *argv[]) {
+    auto model = ppf::loadText(argv[ 1 ]);
+    auto scene = ppf::loadText(argv[ 2 ]);
+
+    ppf::ICP        icp(10);
+    float           residual;
+    Eigen::Matrix4f pose;
+    {
+        ppf::Timer t("icp");
+        icp.registerModelToScene(model, scene, residual, pose);
+    }
+    auto pct = ppf::transformPointCloud(model, pose);
+    ppf::saveText("out2.txt", pct);
+
+    std::cout << residual << std::endl << pose << std::endl;
 }

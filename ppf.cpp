@@ -270,6 +270,12 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         pose.push_back(p.pose.matrix());
         score.push_back(p.numVotes);
     }
+
+    {
+        auto pct = transformPointCloud(impl_->sampledModel, pose[ 0 ]);
+        saveText("model.txt", pct);
+        saveText("scene.txt", sampledScene);
+    }
 }
 
 void Detector::save(const std::string &filename) {
