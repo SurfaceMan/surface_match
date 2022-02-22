@@ -9,21 +9,16 @@ public:
     int   maxIterations;
     float tolerance;
     float rejectionScale;
-    int   numLevels;
-    int   numNeighborsCorr;
 
-    IMPL(int iterations_, float tolerance_, float rejectionScale_, int numLevels_, int numMaxCorr_)
+    IMPL(int iterations_, float tolerance_, float rejectionScale_)
         : maxIterations(iterations_)
         , tolerance(tolerance_)
-        , rejectionScale(rejectionScale_)
-        , numLevels(numLevels_)
-        , numNeighborsCorr(numMaxCorr_) {
+        , rejectionScale(rejectionScale_) {
     }
 };
 
-ICP::ICP(const int iterations, const float tolerance, const float rejectionScale,
-         const int numLevels, const int numMaxCorr)
-    : impl_(new IMPL(iterations, tolerance, rejectionScale, numLevels, numMaxCorr)) {
+ICP::ICP(const int iterations, const float tolerance, const float rejectionScale)
+    : impl_(new IMPL(iterations, tolerance, rejectionScale)) {
 }
 
 ICP::~ICP() {
@@ -67,8 +62,8 @@ Eigen::Matrix3f xyz2Matrix(float rx, float ry, float rz) {
 Eigen::Matrix4f minimizePointToPlaneMetric(const PointCloud &srcPC, const PointCloud &dstPC) {
     int size = srcPC.point.size();
 
-    Eigen::MatrixXf A = Eigen::MatrixXf::Zero(6, size);
-    Eigen::MatrixXf B = Eigen::MatrixXf::Zero(1, size);
+    Eigen::MatrixXf A = Eigen::MatrixXf::Zero(size, 6);
+    Eigen::MatrixXf B = Eigen::MatrixXf::Zero(size, 1);
 
     for (int i = 0; i < size; i++) {
         auto &p1 = srcPC.point[ i ];
@@ -79,9 +74,9 @@ Eigen::Matrix4f minimizePointToPlaneMetric(const PointCloud &srcPC, const PointC
         auto axis = p1.cross(n2);
         auto v    = sub.dot(n2);
 
-        A.block<3, 1>(0, i) = axis.transpose();
-        A.block<3, 1>(3, i) = n2.transpose();
-        B(0, i)             = v;
+        A.block<1, 3>(i, 0) = axis;
+        A.block<1, 3>(i, 3) = n2;
+        B(i, 0)             = v;
     }
 
     Eigen::JacobiSVD<Eigen::MatrixXf> svd(A, Eigen::ComputeThinU | Eigen::ComputeThinV);
@@ -113,21 +108,41 @@ float meanDiff(const PointCloud &srcPC, const PointCloud &dstPC) {
     return diff;
 }
 
+float mid(const std::vector<float> &distances) {
+    auto tmp = distances;
+    std::sort(tmp.begin(), tmp.end());
+    auto index = tmp.size() / 2;
+    return tmp[ index ];
+}
+
+float getRejectThreshold(const std::vector<float> &distances, float rejectScale) {
+    auto               midVal = mid(distances);
+    auto               size   = distances.size();
+    std::vector<float> tmp(size);
+    for (size_t i = 0; i < size; i++) {
+        tmp[ i ] = distances[ i ] - midVal;
+    }
+
+    auto  s         = 1.48257968f * mid(tmp);
+    float threshold = rejectScale * s + midVal;
+
+    return threshold;
+}
+
 int ICP::registerModelToScene(const PointCloud &srcPC, const PointCloud &dstPC, float &residual,
                               Eigen::Matrix4f &pose) {
     int        n               = srcPC.point.size();
     const bool useRobustReject = impl_->rejectionScale > 0;
 
-    auto srcTmp = srcPC;
-    auto dstTmp = dstPC;
+    auto  srcTmp = srcPC;
+    auto &dstTmp = dstPC;
 
     // initialize pose
     pose            = Eigen::Matrix4f::Identity();
-    int   numLevel  = impl_->numLevels;
     float tolerance = impl_->tolerance;
     int   maxIter   = impl_->maxIterations;
 
-    float TolP = tolerance * (numLevel * numLevel);
+    float TolP = tolerance;
 
     float     valOld = 9999999999;
     float     valMin = 9999999999;
@@ -145,6 +160,20 @@ int ICP::registerModelToScene(const PointCloud &srcPC, const PointCloud &dstPC, 
         for (int i = 0; i < indicies.size(); i++) {
             auto index = indicies[ i ];
             map[ index ].push_back(i);
+        }
+
+        // limit distance
+        if (useRobustReject) {
+            map.clear();
+            auto threshold = getRejectThreshold(distances, impl_->rejectionScale);
+            for (size_t i = 0; i < distances.size(); i++) {
+                auto &distance = distances[ i ];
+                if (distance > threshold)
+                    continue;
+
+                auto index = indicies[ i ];
+                map[ index ].push_back(i);
+            }
         }
 
         // find model-scene closest point pair
