@@ -76,6 +76,8 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel) {
     auto  sampledModel      = samplePointCloud(model, sampleStep);
     impl_->featDistanceStep = sampledModel.box.diameter() * impl_->featDistanceStepRel;
 
+    std::cout << "model sample step:" << sampleStep << std::endl;
+
     if (sampledModel.normal.empty())
         sampledModel.normal = estimateNormal(sampledModel, model);
 
@@ -140,6 +142,8 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     float   modelDiameter = impl_->sampledModel.box.diameter();
     float   sampleStep    = modelDiameter * samplingDistanceRel;
     auto    sampledScene  = samplePointCloud(scene, sampleStep, &grid);
+
+    std::cout << "scene sample step:" << sampleStep << std::endl;
 
     if (sampledScene.normal.empty())
         sampledScene.normal = estimateNormal(sampledScene, scene);
