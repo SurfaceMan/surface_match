@@ -3,6 +3,8 @@
 #include <KDTreeVectorOfVectorsAdaptor.h>
 #include <util.h>
 
+#include <iostream>
+
 namespace ppf {
 struct ICP::IMPL {
 public:
@@ -92,7 +94,8 @@ Eigen::Matrix4f minimizePointToPlaneMetric(const PointCloud &srcPC, const PointC
     return result;
 }
 
-float meanDiff(const PointCloud &srcPC, const PointCloud &dstPC) {
+// Mean Squared Error
+float mse(const PointCloud &srcPC, const PointCloud &dstPC) {
     float diff = 0;
 
     int size = srcPC.point.size();
@@ -120,7 +123,7 @@ float getRejectThreshold(const std::vector<float> &distances, float rejectScale)
     auto               size   = distances.size();
     std::vector<float> tmp(size);
     for (size_t i = 0; i < size; i++) {
-        tmp[ i ] = distances[ i ] - midVal;
+        tmp[ i ] = abs(distances[ i ] - midVal);
     }
 
     auto  s         = 1.48257968f * mid(tmp);
@@ -142,11 +145,8 @@ int ICP::registerModelToScene(const PointCloud &srcPC, const PointCloud &dstPC, 
     float tolerance = impl_->tolerance;
     int   maxIter   = impl_->maxIterations;
 
-    float TolP = tolerance;
-
-    float     valOld = 9999999999;
-    float     valMin = 9999999999;
-    int       iter   = 0;
+    float     preError = 0;
+    int       iter     = 0;
     kd_tree_t kdtree(3, dstTmp.point, 10);
     kdtree.index->buildIndex();
 
@@ -199,6 +199,8 @@ int ICP::registerModelToScene(const PointCloud &srcPC, const PointCloud &dstPC, 
             // too few pairs!!!
         }
 
+        std::cout << "corresponse pairs:" << modelScenePair.size() << std::endl;
+
         PointCloud src;
         PointCloud dst;
         for (auto &item : modelScenePair) {
@@ -208,21 +210,29 @@ int ICP::registerModelToScene(const PointCloud &srcPC, const PointCloud &dstPC, 
             dst.normal.push_back(dstTmp.normal[ item.second ]);
         }
 
-        auto p    = minimizePointToPlaneMetric(src, dst);
-        auto pct  = transformPointCloud(src, pose);
-        auto fval = meanDiff(pct, dst);
-        auto perc = fval / valOld;
-        valOld    = fval;
-        if (fval < valMin)
-            valMin = fval;
+        auto p   = minimizePointToPlaneMetric(src, dst);
+        auto pct = transformPointCloud(src, p);
 
-        residual = valMin;
-        pose     = p * pose;
+        std::vector<int>   indicies2;
+        std::vector<float> distances2;
+        PointCloud         dst2;
+        findClosestPoint(kdtree, pct, indicies2, distances2);
+        for (auto &idx : indicies2) {
+            dst2.point.push_back(dstTmp.point[ idx ]);
+            dst2.normal.push_back(dstTmp.normal[ idx ]);
+        }
+        auto meanError = mse(pct, dst2);
 
-        if (perc < (1 + TolP) || perc > (1 - TolP))
+        std::cout << "dist:" << meanError << " residual:" << abs(preError - meanError) << std::endl;
+
+        if (abs(preError - meanError) < tolerance)
             break;
 
-        srcTmp = transformPointCloud(srcTmp, pose);
+        preError = meanError;
+        pose     = pose * p;
+        residual = meanError;
+
+        srcTmp = transformPointCloud(srcTmp, p);
     }
 
     return 0;

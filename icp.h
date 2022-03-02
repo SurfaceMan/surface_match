@@ -18,7 +18,7 @@
 namespace ppf {
 class ICP {
 public:
-    ICP(const int iterations, const float tolerence = 0.05f, const float rejectionScale = 2.5f);
+    ICP(const int iterations, const float tolerance = 0.05f, const float rejectionScale = 2.5f);
     ~ICP();
 
     int registerModelToScene(const PointCloud &srcPC, const PointCloud &dstPC, float &residual,
