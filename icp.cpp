@@ -144,14 +144,8 @@ std::vector<std::pair<int, int>> findCorresponse(const PointCloud &srcPC, const 
     findClosestPoint(kdtree, srcPC, indicies, distances);
 
     std::map<int, std::vector<int>> map;
-    for (int i = 0; i < indicies.size(); i++) {
-        auto index = indicies[ i ];
-        map[ index ].push_back(i);
-    }
-
     // limit distance
     if (rejectionScale > 0) {
-        map.clear();
         auto threshold = getRejectThreshold(distances, rejectionScale);
         for (size_t i = 0; i < distances.size(); i++) {
             auto &distance = distances[ i ];
@@ -161,23 +155,20 @@ std::vector<std::pair<int, int>> findCorresponse(const PointCloud &srcPC, const 
             auto index = indicies[ i ];
             map[ index ].push_back(i);
         }
+    } else {
+        for (int i = 0; i < indicies.size(); i++) {
+            auto index = indicies[ i ];
+            map[ index ].push_back(i);
+        }
     }
 
     // find model-scene closest point pair
     std::vector<std::pair<int, int>> modelScenePair; //[model_index, scene_index];
     for (auto &node : map) {
         int sceneIndex = node.first;
-        int modelIndex = node.second[ 0 ];
-        int minDist    = distances[ modelIndex ];
-
-        for (int i = 1; i < node.second.size(); i++) {
-            auto &index    = node.second[ i ];
-            auto &distance = distances[ index ];
-            if (distance < minDist) {
-                minDist    = distance;
-                modelIndex = index;
-            }
-        }
+        int modelIndex =
+            *std::min_element(node.second.begin(), node.second.end(),
+                              [ & ](int &a, int &b) { return distances[ a ] < distances[ b ]; });
 
         modelScenePair.emplace_back(modelIndex, sceneIndex);
     }
@@ -217,9 +208,14 @@ IterResult iteration(const PointCloud &srcPC, const PointCloud &dstPC, const kd_
         dst2.point.push_back(dstPC.point[ idx ]);
         dst2.normal.push_back(dstPC.normal[ idx ]);
     }
-    auto meanError = mse(pct, dst2);
+    // auto meanError = mse(pct, dst2);
 
-    return IterResult{modelScenePair.size(), p, meanError};
+    float mse = 0;
+    for (auto &dist : distances2)
+        mse += std::sqrtf(dist);
+    mse /= (float)distances2.size();
+
+    return IterResult{modelScenePair.size(), p, mse};
 }
 
 int inliner(const PointCloud &srcPC, const kd_tree_t &kdtree, float inlineDist) {
@@ -227,9 +223,10 @@ int inliner(const PointCloud &srcPC, const kd_tree_t &kdtree, float inlineDist) 
     std::vector<float> distances;
     findClosestPoint(kdtree, srcPC, indicies, distances);
 
-    int result = 0;
+    int   result         = 0;
+    float inlineDistSqua = inlineDist * inlineDist;
     for (auto &dist : distances) {
-        if (dist < inlineDist)
+        if (dist < inlineDistSqua)
             result++;
     }
 
