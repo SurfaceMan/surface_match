@@ -6,24 +6,28 @@
 #include <iostream>
 
 namespace ppf {
-struct ICP::IMPL {
-public:
-    int   maxIterations;
-    float tolerance;
-    float rejectionScale;
-
-    IMPL(int iterations_, float tolerance_, float rejectionScale_)
-        : maxIterations(iterations_)
-        , tolerance(tolerance_)
-        , rejectionScale(rejectionScale_) {
-    }
-};
-
-ICP::ICP(const int iterations, const float tolerance, const float rejectionScale)
-    : impl_(new IMPL(iterations, tolerance, rejectionScale)) {
+ConvergenceCriteria::ConvergenceCriteria(int iterations_, float inlinerDist_, float mseMin_,
+                                         float mseMax_, float tolerance_, float rejectionScale_)
+    : iterations(iterations_)
+    , inlinerDist(inlinerDist_)
+    , mseMin(mseMin_)
+    , mseMax(mseMax_)
+    , tolerance(tolerance_)
+    , rejectionScale(rejectionScale_) {
 }
 
-ICP::~ICP() {
+ConvergenceResult::ConvergenceResult()
+    : converged(false)
+    , type(ConvergenceType::ITER)
+    , mse(std::numeric_limits<float>::max())
+    , convergeRate(1)
+    , iterations(0)
+    , pose(Eigen::Matrix4f::Identity())
+    , inliner(0) {
+}
+
+ICP::ICP(ConvergenceCriteria criteria)
+    : criteria_(criteria) {
 }
 
 typedef std::vector<Eigen::Vector3f>                   vectors_t;
@@ -132,115 +136,180 @@ float getRejectThreshold(const std::vector<float> &distances, float rejectScale)
     return threshold;
 }
 
-int ICP::registerModelToScene(const PointCloud &srcPC, const PointCloud &dstPC, float &residual,
-                              Eigen::Matrix4f &pose) {
-    int        n               = srcPC.point.size();
-    const bool useRobustReject = impl_->rejectionScale > 0;
+std::vector<std::pair<int, int>> findCorresponse(const PointCloud &srcPC, const PointCloud &dstPC,
+                                                 const kd_tree_t &kdtree, float rejectionScale) {
+    std::vector<int>   indicies;
+    std::vector<float> distances;
 
-    auto  srcTmp = srcPC;
-    auto &dstTmp = dstPC;
+    findClosestPoint(kdtree, srcPC, indicies, distances);
 
-    // initialize pose
-    pose            = Eigen::Matrix4f::Identity();
-    float tolerance = impl_->tolerance;
-    int   maxIter   = impl_->maxIterations;
+    std::map<int, std::vector<int>> map;
+    for (int i = 0; i < indicies.size(); i++) {
+        auto index = indicies[ i ];
+        map[ index ].push_back(i);
+    }
 
-    float     preError = 0;
-    int       iter     = 0;
-    kd_tree_t kdtree(3, dstTmp.point, 10);
-    kdtree.index->buildIndex();
+    // limit distance
+    if (rejectionScale > 0) {
+        map.clear();
+        auto threshold = getRejectThreshold(distances, rejectionScale);
+        for (size_t i = 0; i < distances.size(); i++) {
+            auto &distance = distances[ i ];
+            if (distance > threshold)
+                continue;
 
-    while (iter++ < maxIter) {
-        std::vector<int>   indicies;
-        std::vector<float> distances;
-
-        findClosestPoint(kdtree, srcTmp, indicies, distances);
-
-        std::map<int, std::vector<int>> map;
-        for (int i = 0; i < indicies.size(); i++) {
             auto index = indicies[ i ];
             map[ index ].push_back(i);
         }
-
-        // limit distance
-        if (useRobustReject) {
-            map.clear();
-            auto threshold = getRejectThreshold(distances, impl_->rejectionScale);
-            for (size_t i = 0; i < distances.size(); i++) {
-                auto &distance = distances[ i ];
-                if (distance > threshold)
-                    continue;
-
-                auto index = indicies[ i ];
-                map[ index ].push_back(i);
-            }
-        }
-
-        // find model-scene closest point pair
-        std::vector<std::pair<int, int>> modelScenePair; //[model_index, scene_index];
-        for (auto &node : map) {
-            int sceneIndex = node.first;
-            int modelIndex = node.second[ 0 ];
-            int minDist    = distances[ modelIndex ];
-
-            for (int i = 1; i < node.second.size(); i++) {
-                auto &index    = node.second[ i ];
-                auto &distance = distances[ index ];
-                if (distance < minDist) {
-                    minDist    = distance;
-                    modelIndex = index;
-                }
-            }
-
-            modelScenePair.emplace_back(modelIndex, sceneIndex);
-        }
-
-        if (modelScenePair.size() < 6) {
-            // too few pairs!!!
-        }
-
-        std::cout << "corresponse pairs:" << modelScenePair.size() << std::endl;
-
-        PointCloud src;
-        PointCloud dst;
-        for (auto &item : modelScenePair) {
-            src.point.push_back(srcTmp.point[ item.first ]);
-            src.normal.push_back(srcTmp.normal[ item.first ]);
-            dst.point.push_back(dstTmp.point[ item.second ]);
-            dst.normal.push_back(dstTmp.normal[ item.second ]);
-        }
-
-        auto p   = minimizePointToPlaneMetric(src, dst);
-        auto pct = transformPointCloud(src, p);
-
-        std::vector<int>   indicies2;
-        std::vector<float> distances2;
-        PointCloud         dst2;
-        findClosestPoint(kdtree, pct, indicies2, distances2);
-        for (auto &idx : indicies2) {
-            dst2.point.push_back(dstTmp.point[ idx ]);
-            dst2.normal.push_back(dstTmp.normal[ idx ]);
-        }
-        auto meanError = mse(pct, dst2);
-
-        std::cout << "dist:" << meanError << " residual:" << abs(preError - meanError) << std::endl;
-
-        if (abs(preError - meanError) < tolerance)
-            break;
-
-        preError = meanError;
-        pose     = pose * p;
-        residual = meanError;
-
-        srcTmp = transformPointCloud(srcTmp, p);
     }
 
-    return 0;
+    // find model-scene closest point pair
+    std::vector<std::pair<int, int>> modelScenePair; //[model_index, scene_index];
+    for (auto &node : map) {
+        int sceneIndex = node.first;
+        int modelIndex = node.second[ 0 ];
+        int minDist    = distances[ modelIndex ];
+
+        for (int i = 1; i < node.second.size(); i++) {
+            auto &index    = node.second[ i ];
+            auto &distance = distances[ index ];
+            if (distance < minDist) {
+                minDist    = distance;
+                modelIndex = index;
+            }
+        }
+
+        modelScenePair.emplace_back(modelIndex, sceneIndex);
+    }
+
+    return modelScenePair;
 }
 
-int ICP::registerModelToScene(const PointCloud &srcPC, const PointCloud &dstPC,
-                              std::vector<float> &residual, std::vector<Eigen::Matrix4f> &pose) {
-    return 0;
+struct IterResult {
+    std::size_t     validPairs = 0;
+    Eigen::Matrix4f pose       = Eigen::Matrix4f::Identity();
+    float           mse        = std::numeric_limits<float>::max();
+};
+
+IterResult iteration(const PointCloud &srcPC, const PointCloud &dstPC, const kd_tree_t &kdtree,
+                     float rejectionScale) {
+    auto modelScenePair = findCorresponse(srcPC, dstPC, kdtree, rejectionScale);
+    if (modelScenePair.size() < 6)
+        return IterResult{modelScenePair.size()};
+
+    PointCloud src;
+    PointCloud dst;
+    for (auto &item : modelScenePair) {
+        src.point.push_back(srcPC.point[ item.first ]);
+        src.normal.push_back(srcPC.normal[ item.first ]);
+        dst.point.push_back(dstPC.point[ item.second ]);
+        dst.normal.push_back(dstPC.normal[ item.second ]);
+    }
+
+    auto p   = minimizePointToPlaneMetric(src, dst);
+    auto pct = transformPointCloud(src, p);
+
+    std::vector<int>   indicies2;
+    std::vector<float> distances2;
+    PointCloud         dst2;
+    findClosestPoint(kdtree, pct, indicies2, distances2);
+    for (auto &idx : indicies2) {
+        dst2.point.push_back(dstPC.point[ idx ]);
+        dst2.normal.push_back(dstPC.normal[ idx ]);
+    }
+    auto meanError = mse(pct, dst2);
+
+    return IterResult{modelScenePair.size(), p, meanError};
+}
+
+int inliner(const PointCloud &srcPC, const kd_tree_t &kdtree, float inlineDist) {
+    std::vector<int>   indicies;
+    std::vector<float> distances;
+    findClosestPoint(kdtree, srcPC, indicies, distances);
+
+    int result = 0;
+    for (auto &dist : distances) {
+        if (dist < inlineDist)
+            result++;
+    }
+
+    return result;
+}
+
+ConvergenceResult ICP::regist(const PointCloud &src, const PointCloud &dst,
+                              const Eigen::Matrix4f &initPose) {
+    return regist(src, dst, std::vector<Eigen::Matrix4f>{initPose})[ 0 ];
+}
+
+std::vector<ConvergenceResult> ICP::regist(const PointCloud &src, const PointCloud &dst,
+                                           const std::vector<Eigen::Matrix4f> &initPoses) {
+    if (!src.hasNormal() || !dst.hasNormal())
+        throw std::runtime_error("PointCloud empty or no normal at ICP::regist");
+
+    if (criteria_.iterations < 1 || criteria_.inlinerDist < 0 || criteria_.mseMin < 0 ||
+        criteria_.mseMax < criteria_.mseMin || criteria_.tolerance > 1 || criteria_.tolerance < 0 ||
+        criteria_.rejectionScale < 0)
+        throw std::runtime_error("Invalid ConvergenceCriteria at ICP::regist");
+
+    std::vector<ConvergenceResult> results(initPoses.size());
+
+    // initialize
+    kd_tree_t kdtree(3, dst.point, 10);
+    kdtree.index->buildIndex();
+
+    for (int i = 0; i < initPoses.size(); i++) {
+        auto &initPose = initPoses[ i ];
+
+        ConvergenceResult result;
+        result.pose = initPose;
+        auto srcTmp = initPose.isIdentity() ? src : transformPointCloud(src, initPose);
+
+        while (result.iterations < criteria_.iterations) {
+            auto tmpResult = iteration(srcTmp, dst, kdtree, criteria_.rejectionScale);
+
+            bool converged = (tmpResult.validPairs > 6) && (tmpResult.mse < criteria_.mseMax);
+            if (converged)
+                result.converged = true;
+
+            bool stop = false;
+            if (tmpResult.validPairs < 6) {
+                result.type = ConvergenceType::NO_CORRESPONSE;
+                stop        = true;
+            } else {
+                if (tmpResult.mse < criteria_.mseMin) {
+                    result.type = ConvergenceType::MSE;
+                    stop        = true;
+                }
+
+                float convergeRate = (result.mse - tmpResult.mse) / result.mse;
+                if (convergeRate < criteria_.tolerance) {
+                    result.type = ConvergenceType::CONVERGE_RATE;
+                    stop        = true;
+                }
+
+                if (result.iterations++ >= criteria_.iterations) {
+                    result.type = ConvergenceType::ITER;
+                    stop        = true;
+                }
+
+                result.mse          = tmpResult.mse;
+                result.convergeRate = convergeRate;
+                result.pose *= tmpResult.pose;
+            }
+
+            if (stop) {
+                auto pct       = transformPointCloud(src, result.pose);
+                result.inliner = inliner(pct, kdtree, criteria_.inlinerDist);
+                break;
+            }
+
+            srcTmp = transformPointCloud(srcTmp, tmpResult.pose);
+        }
+
+        results[ i ] = result;
+    }
+
+    return results;
 }
 
 } // namespace ppf

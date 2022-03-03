@@ -25,6 +25,8 @@ int main2(int argc, char *argv[]) {
 
     std::cout << pose[ 0 ] << std::endl;
     std::cout << score[ 0 ] << std::endl;
+
+    return 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -33,18 +35,26 @@ int main(int argc, char *argv[]) {
     auto model2 = ppf::loadText(argv[ 3 ]);
 
     std::cout << "model point size:" << model.point.size()
-              << "scene point size:" << scene.point.size() << std::endl;
+              << "\nscene point size:" << scene.point.size() << std::endl;
 
-    ppf::ICP        icp(10);
-    float           residual;
-    Eigen::Matrix4f pose;
+    ppf::ICP               icp(ppf::ConvergenceCriteria(10, 1.5, 1.2, 3.5, 0.0001));
+    ppf::ConvergenceResult result;
     {
         ppf::Timer t("icp");
-        icp.registerModelToScene(model, scene, residual, pose);
+        result = icp.regist(model, scene);
     }
-    auto pct = ppf::transformPointCloud(model2, pose);
-    ppf::saveText("out2.txt", pct);
 
-    std::cout << residual << std::endl << pose << std::endl;
-    return 0;
+    std::cout << "converged: " << result.converged << "\n"
+              << "type: " << static_cast<int>(result.type) << "\n"
+              << "mse: " << result.mse << "\n"
+              << "convergeRate: " << result.convergeRate << "\n"
+              << "iterations: " << result.iterations << "\n"
+              << "inliner: " << result.inliner << "\n"
+              << "pose: \n"
+              << result.pose;
+
+    if (result.converged) {
+        auto pct = ppf::transformPointCloud(model2, result.pose);
+        ppf::saveText("out2.txt", pct);
+    }
 }
