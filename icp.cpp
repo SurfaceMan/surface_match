@@ -292,9 +292,11 @@ std::vector<ConvergenceResult> ICP::regist(const PointCloud &src, const PointClo
                     stop        = true;
                 }
 
-                result.mse          = tmpResult.mse;
-                result.convergeRate = convergeRate;
-                result.pose *= tmpResult.pose;
+                if (convergeRate > 0) {
+                    result.mse          = tmpResult.mse;
+                    result.convergeRate = convergeRate;
+                    result.pose *= tmpResult.pose;
+                }
             }
 
             if (stop) {
