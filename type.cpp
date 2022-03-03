@@ -28,6 +28,10 @@ float BoundingBox::diameter() const {
     return size().norm();
 }
 
+bool PointCloud::hasNormal() const {
+    return (point.size() > 0) && (point.size() == normal.size());
+}
+
 BoxGrid::BoxGrid()
     : step(0)
     , xBins(0)

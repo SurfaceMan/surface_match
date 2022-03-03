@@ -37,6 +37,8 @@ public:
     std::vector<Eigen::Vector3f> point;
     std::vector<Eigen::Vector3f> normal;
     BoundingBox                  box;
+
+    bool hasNormal() const;
 };
 
 struct BoxGrid {
