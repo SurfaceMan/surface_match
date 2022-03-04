@@ -3,8 +3,6 @@
 #include <KDTreeVectorOfVectorsAdaptor.h>
 #include <util.h>
 
-#include <iostream>
-
 namespace ppf {
 ConvergenceCriteria::ConvergenceCriteria(int iterations_, float inlinerDist_, float mseMin_,
                                          float mseMax_, float tolerance_, float rejectionScale_)
@@ -292,7 +290,7 @@ std::vector<ConvergenceResult> ICP::regist(const PointCloud &src, const PointClo
                 if (convergeRate > 0) {
                     result.mse          = tmpResult.mse;
                     result.convergeRate = convergeRate;
-                    result.pose *= tmpResult.pose;
+                    result.pose         = tmpResult.pose * result.pose;
                 }
             }
 
