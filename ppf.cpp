@@ -142,6 +142,7 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     auto &modelSampled    = impl_->sampledModel;
     int   maxAngleIndex   = angleNum - 1;
     float squaredDiameter = modelDiameter * modelDiameter;
+    float reSampleStep    = modelDiameter * impl_->param.poseRefRelSamplingDistance;
 
     //[2.2] data from keyPointFraction/samplingDistanceRel
     int sceneStep = floor(1 / keyPointFraction);
@@ -289,30 +290,63 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
 
     //[6] icp
     ICP sparseIcp(ConvergenceCriteria(5, sampleStep, sampleStep * 0.5, sampleStep * 0.6));
-    // ICP denseIcp(ConvergenceCriteria(param.poseRefNumSteps, ))
+    ICP denseIcp(ConvergenceCriteria(param.poseRefNumSteps, reSampleStep, reSampleStep * 0.5,
+                                     reSampleStep * 0.6));
+
+    PointCloud reSampledScene;
+    if (param.densePoseRefinement) {
+        reSampledScene = samplePointCloud(scene, reSampleStep);
+    }
+
+    using Target = std::pair<float, Eigen::Matrix4f>;
+    std::vector<Target> result; //[score, pose]
     for (auto &p : cluster2) {
-        auto refined = sparseIcp.regist(impl_->sampledModel, sampledScene, p.pose.matrix());
-        if (!refined.converged)
+        auto pose  = p.pose.matrix();
+        auto score = p.numVotes;
+
+        if (param.sparsePoseRefinement) {
+            auto refined = sparseIcp.regist(impl_->sampledModel, sampledScene, pose);
+            if (!refined.converged)
+                continue;
+
+            pose  = refined.pose;
+            score = refined.inliner / float(refNum);
+            if (score > 1.f)
+                score = 1.f;
+
+            std::cout << "sparsePoseRefinement score:" << score << std::endl;
+        }
+
+        if (param.sparsePoseRefinement && param.densePoseRefinement) {
+            auto refined = denseIcp.regist(impl_->reSampledModel, reSampledScene, pose);
+            if (!refined.converged)
+                continue;
+
+            pose  = refined.pose;
+            score = refined.inliner / float(impl_->reSampledModel.point.size());
+            if (score > 1.f)
+                score = 1.f;
+
+            std::cout << "densePoseRefinement score:" << score << std::endl;
+        }
+
+        if ((param.sparsePoseRefinement || param.densePoseRefinement) && (score < minScore))
             continue;
 
-        auto  expectedPoints = (refNum * 0.5f * refNum * 0.5f * keyPointFraction * 0.5f);
-        float score1         = p.numVotes / expectedPoints;
-
-        float score = refined.inliner / float(refNum);
-        if (score > 1.f)
-            score = 1.f;
-
-        std::cout << "expected size:" << expectedPoints << " score1:" << score1
-                  << " score2:" << score << std::endl;
-
-        if (score < minScore)
-            continue;
-
-        poses.push_back(refined.pose);
-        scores.push_back(score);
-
-        if (poses.size() >= param.numMatches)
+        result.emplace_back(score, pose);
+        if (result.size() >= param.numMatches)
             break;
+    }
+
+    std::sort(result.begin(), result.end(),
+              [](const Target &a, const Target &b) { return a.first > b.first; });
+
+    scores.resize(result.size());
+    poses.resize(result.size());
+    for (std::size_t i = 0; i < result.size(); i++) {
+        auto &target = result[ i ];
+        scores[ i ]  = target.first;
+        poses[ i ]   = target.second;
     }
 }
 
