@@ -31,11 +31,11 @@ ICP::ICP(ConvergenceCriteria criteria)
 typedef std::vector<Eigen::Vector3f>                   vectors_t;
 typedef KDTreeVectorOfVectorsAdaptor<vectors_t, float> kd_tree_t;
 
-void findClosestPoint(const kd_tree_t &kdtree, const PointCloud &srcPC, std::vector<int> &indicies,
+void findClosestPoint(const kd_tree_t &kdtree, const PointCloud &srcPC, std::vector<int> &indices,
                       std::vector<float> &distances) {
 
     const int          numResult = 1;
-    std::vector<int>   indiciesTmp;
+    std::vector<int>   indicesTmp;
     std::vector<float> distancesTmp;
     for (auto &point : srcPC.point) {
         std::vector<size_t>            indexes(numResult);
@@ -45,11 +45,11 @@ void findClosestPoint(const kd_tree_t &kdtree, const PointCloud &srcPC, std::vec
 
         kdtree.index->findNeighbors(resultSet, &point[ 0 ], nanoflann::SearchParams());
 
-        indiciesTmp.push_back(indexes[ 0 ]);
+        indicesTmp.push_back(indexes[ 0 ]);
         distancesTmp.push_back(dists[ 0 ]);
     }
 
-    indicies  = std::move(indiciesTmp);
+    indices   = std::move(indicesTmp);
     distances = std::move(distancesTmp);
 }
 
@@ -64,7 +64,7 @@ Eigen::Matrix3f xyz2Matrix(float rx, float ry, float rz) {
 }
 
 Eigen::Matrix4f minimizePointToPlaneMetric(const PointCloud &srcPC, const PointCloud &dstPC) {
-    int size = srcPC.point.size();
+    auto size = srcPC.point.size();
 
     Eigen::MatrixXf A = Eigen::MatrixXf::Zero(size, 6);
     Eigen::MatrixXf B = Eigen::MatrixXf::Zero(size, 1);
@@ -96,23 +96,6 @@ Eigen::Matrix4f minimizePointToPlaneMetric(const PointCloud &srcPC, const PointC
     return result;
 }
 
-// Mean Squared Error
-float mse(const PointCloud &srcPC, const PointCloud &dstPC) {
-    float diff = 0;
-
-    int size = srcPC.point.size();
-    for (int i = 0; i < size; i++) {
-        auto &p1 = srcPC.point[ i ];
-        auto &n1 = srcPC.normal[ i ];
-        auto &p2 = dstPC.point[ i ];
-        auto &n2 = dstPC.normal[ i ];
-
-        diff += sqrtf((n2 - n1).squaredNorm() + (p2 - p1).squaredNorm()) / size;
-    }
-
-    return diff;
-}
-
 float mid(const std::vector<float> &distances) {
     auto tmp = distances;
     std::sort(tmp.begin(), tmp.end());
@@ -134,7 +117,7 @@ float getRejectThreshold(const std::vector<float> &distances, float rejectScale)
     return threshold;
 }
 
-std::vector<std::pair<int, int>> findCorresponse(const PointCloud &srcPC, const PointCloud &dstPC,
+std::vector<std::pair<int, int>> findCorresponds(const PointCloud &srcPC, const PointCloud &dstPC,
                                                  const kd_tree_t &kdtree, float rejectionScale) {
     std::vector<int>   indicies;
     std::vector<float> distances;
@@ -160,7 +143,7 @@ std::vector<std::pair<int, int>> findCorresponse(const PointCloud &srcPC, const 
         }
     }
 
-    // find model-scene closest point pair
+    // find the closest model-scene point pair
     std::vector<std::pair<int, int>> modelScenePair; //[model_index, scene_index];
     for (auto &node : map) {
         int sceneIndex = node.first;
@@ -182,7 +165,7 @@ struct IterResult {
 
 IterResult iteration(const PointCloud &srcPC, const PointCloud &dstPC, const kd_tree_t &kdtree,
                      float rejectionScale) {
-    auto modelScenePair = findCorresponse(srcPC, dstPC, kdtree, rejectionScale);
+    auto modelScenePair = findCorresponds(srcPC, dstPC, kdtree, rejectionScale);
     if (modelScenePair.size() < 6)
         return IterResult{modelScenePair.size()};
 
@@ -198,15 +181,14 @@ IterResult iteration(const PointCloud &srcPC, const PointCloud &dstPC, const kd_
     auto p   = minimizePointToPlaneMetric(src, dst);
     auto pct = transformPointCloud(src, p);
 
-    std::vector<int>   indicies2;
+    std::vector<int>   indices2;
     std::vector<float> distances2;
     PointCloud         dst2;
-    findClosestPoint(kdtree, pct, indicies2, distances2);
-    for (auto &idx : indicies2) {
+    findClosestPoint(kdtree, pct, indices2, distances2);
+    for (auto &idx : indices2) {
         dst2.point.push_back(dstPC.point[ idx ]);
         dst2.normal.push_back(dstPC.normal[ idx ]);
     }
-    // auto meanError = mse(pct, dst2);
 
     float mse = 0;
     for (auto &dist : distances2)
@@ -217,14 +199,14 @@ IterResult iteration(const PointCloud &srcPC, const PointCloud &dstPC, const kd_
 }
 
 int inliner(const PointCloud &srcPC, const kd_tree_t &kdtree, float inlineDist) {
-    std::vector<int>   indicies;
+    std::vector<int>   indices;
     std::vector<float> distances;
-    findClosestPoint(kdtree, srcPC, indicies, distances);
+    findClosestPoint(kdtree, srcPC, indices, distances);
 
-    int   result         = 0;
-    float inlineDistSqua = inlineDist * inlineDist;
+    int   result            = 0;
+    float inlineDistSquared = inlineDist * inlineDist;
     for (auto &dist : distances) {
-        if (dist < inlineDistSqua)
+        if (dist < inlineDistSquared)
             result++;
     }
 
@@ -232,12 +214,12 @@ int inliner(const PointCloud &srcPC, const kd_tree_t &kdtree, float inlineDist) 
 }
 
 ConvergenceResult ICP::regist(const PointCloud &src, const PointCloud &dst,
-                              const Eigen::Matrix4f &initPose) {
+                              const Eigen::Matrix4f &initPose) const {
     return regist(src, dst, std::vector<Eigen::Matrix4f>{initPose})[ 0 ];
 }
 
 std::vector<ConvergenceResult> ICP::regist(const PointCloud &src, const PointCloud &dst,
-                                           const std::vector<Eigen::Matrix4f> &initPoses) {
+                                           const std::vector<Eigen::Matrix4f> &initPoses) const {
     if (!src.hasNormal() || !dst.hasNormal())
         throw std::runtime_error("PointCloud empty or no normal at ICP::regist");
 
@@ -268,7 +250,7 @@ std::vector<ConvergenceResult> ICP::regist(const PointCloud &src, const PointClo
 
             bool stop = false;
             if (tmpResult.validPairs < 6) {
-                result.type = ConvergenceType::NO_CORRESPONSE;
+                result.type = ConvergenceType::NO_CORRESPONDS;
                 stop        = true;
             } else {
                 if (tmpResult.mse < criteria_.mseMin) {

@@ -17,7 +17,7 @@ int main(int argc, char *argv[]) {
     std::vector<float>           score;
     {
         ppf::Timer t("match scene");
-        detector.matchScene(scene, pose, score, 0.04f, 0.2f, 0.5f, 1);
+        detector.matchScene(scene, pose, score, 0.04f, 0.2f, 0.5f, ppf::MatchParam{5});
     }
 
     for (int i = 0; i < pose.size(); i++) {
@@ -39,7 +39,7 @@ int main2(int argc, char *argv[]) {
     std::cout << "model point size:" << model.point.size()
               << "\nscene point size:" << scene.point.size() << std::endl;
 
-    ppf::ICP               icp(ppf::ConvergenceCriteria(10, 1.5, 1.2, 3.5, 0.0001));
+    ppf::ICP               icp(ppf::ConvergenceCriteria(10, 1.5f, 1.2f, 3.5f, 0.0001f));
     ppf::ConvergenceResult result;
     {
         ppf::Timer t("icp");

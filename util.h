@@ -88,17 +88,4 @@ std::vector<Pose> avgClusters(const std::vector<std::vector<Pose>> &clusters);
 PointCloud loadText(const std::string &filename);
 
 void saveText(const std::string &filename, const PointCloud &pc);
-
-// icp
-Eigen::Vector3f mean(const PointCloud &pc);
-
-void subtract(PointCloud &pc, const Eigen::Vector3f &mean);
-
-float distToOrigin(PointCloud &pc);
-
-void scale(PointCloud &pc, float scale);
-
-inline int divUp(int a, unsigned int b) {
-    return (a + b - 1) / b;
-}
 } // namespace ppf

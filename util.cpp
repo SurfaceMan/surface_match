@@ -28,9 +28,9 @@ PointCloud samplePointCloud(const ppf::PointCloud &pc, float sampleStep, BoxGrid
     int maxYIndex = yBins - 1;
     int maxZIndex = zBins - 1;
 
-    float xScale = maxXIndex / size.x();
-    float yScale = maxYIndex / size.y();
-    float zScale = maxZIndex / size.z();
+    float xScale = (float)maxXIndex / (float)size.x();
+    float yScale = (float)maxYIndex / (float)size.y();
+    float zScale = (float)maxZIndex / (float)size.z();
 
     // std::map<uint64_t, int> map;
     std::vector<std::vector<std::vector<int>>> map;
@@ -135,7 +135,7 @@ BoundingBox computeBoundingBox(const ppf::PointCloud &pc) {
             min.z() = p.z();
     }
 
-    return BoundingBox(min, max);
+    return {min, max};
 }
 
 PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f &pose) {
@@ -192,7 +192,7 @@ Eigen::Vector4f computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &p2,
         f3 = 0;
     }
 
-    return Eigen::Vector4f(f1, f2, f3, dn);
+    return {f1, f2, f3, dn};
 }
 
 uint32_t murmurhash3(const int *key, uint32_t len, uint32_t seed) {
@@ -203,8 +203,8 @@ uint32_t murmurhash3(const int *key, uint32_t len, uint32_t seed) {
     static const uint32_t m       = 5;
     static const uint32_t n       = 0xe6546b64;
     uint32_t              hash    = seed;
-    const int             nBlocks = len / 4;
-    const uint32_t       *blocks  = (const uint32_t *)key;
+    auto                  nBlocks = len / 4;
+    auto                 *blocks  = (const uint32_t *)key;
 
     for (int i = 0; i < nBlocks; i++) {
         uint32_t k = blocks[ i ];
@@ -215,8 +215,8 @@ uint32_t murmurhash3(const int *key, uint32_t len, uint32_t seed) {
         hash = ((hash << r2) | (hash >> (32 - r2))) * m + n;
     }
 
-    const uint8_t *tail = (const uint8_t *)(key + nBlocks * 4);
-    uint32_t       k1   = 0;
+    auto    *tail = (const uint8_t *)(key + nBlocks * 4);
+    uint32_t k1   = 0;
 
     switch (len & 3) {
         case 3:
@@ -326,10 +326,10 @@ std::vector<Pose> clusterPose2(std::vector<Pose> &poseList, Eigen::Vector3f &pos
     std::vector<Eigen::Vector4f> trans;
     trans.reserve(poseList.size());
     for (auto &pose : poseList) {
-        trans.push_back(pose.pose.matrix() * p);
+        trans.emplace_back(pose.pose.matrix() * p);
     }
 
-    float             squaredThre = threshold * threshold;
+    float             squaredThreshold = threshold * threshold;
     std::vector<bool> used(poseList.size(), false);
     std::vector<Pose> result;
     for (int i = 0; i < poseList.size(); i++) {
@@ -341,7 +341,7 @@ std::vector<Pose> clusterPose2(std::vector<Pose> &poseList, Eigen::Vector3f &pos
         for (int j = i + 1; j < poseList.size(); j++) {
             if (used[ j ])
                 continue;
-            if ((trans[ i ] - trans[ j ]).squaredNorm() < squaredThre) {
+            if ((trans[ i ] - trans[ j ]).squaredNorm() < squaredThreshold) {
                 poseI.numVotes += poseList[ j ].numVotes;
                 used[ j ] = true;
             }
@@ -355,7 +355,7 @@ std::vector<Pose> clusterPose2(std::vector<Pose> &poseList, Eigen::Vector3f &pos
 
 Eigen::Quaternionf avgQuaternionMarkley(const std::vector<Eigen::Quaternionf> &qs) {
     Eigen::Matrix4f A = Eigen::Matrix4f::Zero();
-    int             M = qs.size();
+    auto            M = qs.size();
     for (auto &q : qs) {
         Eigen::Vector4f v(q.w(), q.x(), q.y(), q.z());
         A += v * v.transpose();
@@ -376,7 +376,7 @@ Eigen::Quaternionf avgQuaternionMarkley(const std::vector<Eigen::Quaternionf> &q
     q << evecs.real()(0, evalsMax), evecs.real()(1, evalsMax), evecs.real()(2, evalsMax),
         evecs.real()(3, evalsMax); //得到对应特征向量
 
-    return Eigen::Quaternionf(q[ 0 ], q[ 1 ], q[ 2 ], q[ 3 ]);
+    return {q[ 0 ], q[ 1 ], q[ 2 ], q[ 3 ]};
 }
 
 std::vector<Pose> avgClusters(const std::vector<std::vector<Pose>> &clusters) {
@@ -430,37 +430,4 @@ void saveText(const std::string &filename, const PointCloud &pc) {
     }
     out.close();
 }
-
-Eigen::Vector3f mean(const PointCloud &pc) {
-    Eigen::Vector3f point;
-    for (auto &p : pc.point) {
-        point += p;
-    }
-
-    return point / pc.point.size();
-}
-
-void subtract(PointCloud &pc, const Eigen::Vector3f &mean) {
-    for (auto &p : pc.point) {
-        p -= mean;
-    }
-}
-
-float distToOrigin(PointCloud &pc) {
-    int   size  = pc.point.size();
-    float scale = 1.0f / (float)size;
-    float dist  = 0;
-    for (auto &p : pc.point) {
-        dist += p.norm() * scale;
-    }
-
-    return dist;
-}
-
-void scale(PointCloud &pc, float scale_) {
-    for (auto &p : pc.point) {
-        p *= scale_;
-    }
-}
-
 } // namespace ppf

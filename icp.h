@@ -20,7 +20,7 @@ public:
      * @brief Convergence Criteria
      *
      * @param iterations_ max iterations for optimization
-     * @param inlinerDist_ inliner thershold distance
+     * @param inlinerDist_ inliner threshold distance
      * @param mseMin_ min mean-squared-error
      * @param mseMax_ max mean-squared-error indicate whether be converged
      * @param tolerance_ min converge rate
@@ -40,7 +40,7 @@ enum class ConvergenceType {
     ITER,          // reach max iterations
     MSE,           // reach min mean-squared-error
     CONVERGE_RATE, // reach min converge rate
-    NO_CORRESPONSE // no  corresponding set
+    NO_CORRESPONDS // no  corresponding set
 };
 
 struct ConvergenceResult {
@@ -57,7 +57,7 @@ struct ConvergenceResult {
 
 class ICP {
 public:
-    ICP(ConvergenceCriteria criteria);
+    explicit ICP(ConvergenceCriteria criteria);
     ~ICP() = default;
 
     /**
@@ -69,7 +69,7 @@ public:
      * @return ConvergenceResult
      */
     ConvergenceResult regist(const PointCloud &src, const PointCloud &dst,
-                             const Eigen::Matrix4f &initPose = Eigen::Matrix4f::Identity());
+                             const Eigen::Matrix4f &initPose = Eigen::Matrix4f::Identity()) const;
 
     /**
      * @brief register source to target
@@ -80,7 +80,7 @@ public:
      * @return std::vector<ConvergenceResult> same order as initPose
      */
     std::vector<ConvergenceResult> regist(const PointCloud &src, const PointCloud &dst,
-                                          const std::vector<Eigen::Matrix4f> &initPose);
+                                          const std::vector<Eigen::Matrix4f> &initPose) const;
 
 private:
     ConvergenceCriteria criteria_;
