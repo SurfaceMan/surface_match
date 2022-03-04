@@ -23,6 +23,7 @@ public:
      * @brief Construct a new Detector object
      */
     Detector();
+    ~Detector();
 
     /**
      * @brief train point pair feature

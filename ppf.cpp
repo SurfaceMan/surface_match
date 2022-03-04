@@ -49,6 +49,9 @@ Detector::Detector()
     : impl_(nullptr) {
 }
 
+Detector::~Detector() {
+}
+
 void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, TrainParam param) {
     //[1] check input date
     if (samplingDistanceRel > 1 || samplingDistanceRel < 0)
