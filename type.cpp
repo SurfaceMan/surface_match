@@ -7,8 +7,8 @@ BoundingBox::BoundingBox()
 }
 
 BoundingBox::BoundingBox(Eigen::Vector3f min_, Eigen::Vector3f max_)
-    : min(min_)
-    , max(max_) {
+    : min(std::move(min_))
+    , max(std::move(max_)) {
 }
 
 BoundingBox &BoundingBox::operator=(const BoundingBox &rhs) {
@@ -33,7 +33,7 @@ float BoundingBox::diameter() const {
 }
 
 bool PointCloud::hasNormal() const {
-    return (point.size() > 0) && (point.size() == normal.size());
+    return !point.empty() && (point.size() == normal.size());
 }
 
 BoxGrid::BoxGrid()
@@ -49,12 +49,13 @@ int BoxGrid::grid2Index(const Eigen::Vector3i &index_) const {
     return index[ index_.x() ][ index_.y() ][ index_.z() ];
 }
 
-Eigen::Vector3i BoxGrid::index2Grid(int index) const {
-    return grid[ index ];
+Eigen::Vector3i BoxGrid::index2Grid(int index_) const {
+    return grid[ index_ ];
 }
 
 Pose::Pose(float votes)
-    : numVotes(votes){};
+    : numVotes(votes) {
+}
 
 void Pose::updatePose(const Eigen::Matrix4f &newPose) {
     pose = newPose;
@@ -72,6 +73,58 @@ void Pose::updatePoseQuat(const Eigen::Quaternionf &q_) {
     q             = q_;
     r             = q.matrix();
     pose.linear() = q.matrix();
+}
+
+TrainParam::TrainParam(float featDistanceStepRel_, int featAngleResolution_,
+                       float poseRefRelSamplingDistance_)
+    : featDistanceStepRel(featDistanceStepRel_)
+    , featAngleResolution(featAngleResolution_)
+    , poseRefRelSamplingDistance(poseRefRelSamplingDistance_) {
+
+    if (featDistanceStepRel > 1 || featDistanceStepRel <= 0)
+        throw std::range_error("Invalid Input: featDistanceStepRel range mismatch in TrainParam()");
+
+    if (featAngleResolution <= 0)
+        throw std::range_error("Invalid Input: featAngleResolution range mismatch in TrainParam()");
+
+    if (poseRefRelSamplingDistance > 1 || poseRefRelSamplingDistance <= 0)
+        throw std::range_error(
+            "Invalid Input: poseRefRelSamplingDistance range mismatch in TrainParam()");
+}
+
+MatchParam::MatchParam(int numMatches_, float maxOverlapDistRel_, float maxOverlapDistAbs_,
+                       bool sparsePoseRefinement_, bool densePoseRefinement_, int poseRefNumSteps_,
+                       float poseRefDistThresholdRel_, float poseRefDistThresholdAbs_,
+                       float poseRefScoringDistRel_, float poseRefScoringDistAbs_)
+    : numMatches(numMatches_)
+    , maxOverlapDistRel(maxOverlapDistRel_)
+    , maxOverlapDistAbs(maxOverlapDistAbs_)
+    , sparsePoseRefinement(sparsePoseRefinement_)
+    , densePoseRefinement(densePoseRefinement_)
+    , poseRefNumSteps(poseRefNumSteps_)
+    , poseRefDistThresholdRel(poseRefDistThresholdRel_)
+    , poseRefDistThresholdAbs(poseRefDistThresholdAbs_)
+    , poseRefScoringDistRel(poseRefScoringDistRel_)
+    , poseRefScoringDistAbs(poseRefScoringDistAbs_) {
+
+    if (numMatches < 1)
+        throw std::range_error("Invalid Input: numMatches range mismatch in MatchParam()");
+
+    if ((maxOverlapDistRel < 0) && (maxOverlapDistAbs < 0))
+        throw std::range_error("Invalid Input: maxOverlapDist range mismatch in MatchParam()");
+
+    if (!densePoseRefinement) {
+        if (poseRefNumSteps < 1)
+            throw std::range_error("Invalid Input: poseRefNumSteps range mismatch in MatchParam()");
+
+        if ((poseRefDistThresholdRel < 0) && (poseRefDistThresholdAbs < 0))
+            throw std::range_error(
+                "Invalid Input: poseRefDistThreshold range mismatch in MatchParam()");
+
+        if ((poseRefScoringDistRel < 0) && (poseRefScoringDistAbs < 0))
+            throw std::range_error(
+                "Invalid Input: poseRefScoringDist range mismatch in MatchParam()");
+    }
 }
 
 } // namespace ppf

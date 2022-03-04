@@ -4,16 +4,15 @@
 #include <util.h>
 
 #include <Eigen/Geometry>
-#include <exception>
 #include <map>
 #include <utility>
 
 #define _USE_MATH_DEFINES
 #include <math.h>
 
-const float M_2PI = 2 * M_PI;
-
 namespace ppf {
+
+const float M_2PI = 2 * M_PI;
 
 struct Feature {
 public:
@@ -37,32 +36,20 @@ public:
 struct Detector::IMPL {
 public:
     // model
-    float featDistanceStepRel;
-    int   featAngleResolution;
-    float featDistanceStep;
-    float featAngleRadians;
-    bool  trained;
+    float      samplingDistanceRel;
+    TrainParam param;
 
-    ppf::PointCloud                          sampledModel;
+    PointCloud sampledModel;
+    PointCloud reSampledModel;
+
     std::map<uint32_t, std::vector<Feature>> hashTable;
-
-    IMPL(float featDistanceStepRel_, int featAngleResolution_)
-        : featDistanceStepRel(featDistanceStepRel_)
-        , featAngleResolution(featAngleResolution_)
-        , featDistanceStep(0)
-        , featAngleRadians(360.0f / (float)featAngleResolution / 180.0f * M_PI)
-        , trained(false) {
-    }
 };
 
-Detector::Detector(float featDistanceStepRel, int featAngleResolution)
-    : impl_(new IMPL(featDistanceStepRel, featAngleResolution)) {
+Detector::Detector()
+    : impl_(nullptr) {
 }
 
-Detector::~Detector() {
-}
-
-void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel) {
+void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, TrainParam param) {
     //[1] check input date
     if (samplingDistanceRel > 1 || samplingDistanceRel < 0)
         throw std::range_error("Invalid Input: samplingDistanceRel range mismatch in trainModel");
@@ -73,51 +60,57 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel) {
     if (model.box.diameter() == 0)
         model.box = computeBoundingBox(model);
 
-    float sampleStep        = model.box.diameter() * samplingDistanceRel;
-    auto  sampledModel      = samplePointCloud(model, sampleStep);
-    impl_->featDistanceStep = sampledModel.box.diameter() * impl_->featDistanceStepRel;
+    float modelDiameter = model.box.diameter();
+
+    float sampleStep   = modelDiameter * samplingDistanceRel;
+    float reSampleStep = modelDiameter * param.poseRefRelSamplingDistance;
+    float distanceStep = modelDiameter * param.featDistanceStepRel;
+    float angleStep    = M_2PI / (float)param.featAngleResolution;
+
+    impl_                      = std::make_unique<IMPL>();
+    impl_->samplingDistanceRel = samplingDistanceRel;
+    impl_->param               = param;
+    impl_->sampledModel        = samplePointCloud(model, sampleStep);
+    impl_->reSampledModel      = samplePointCloud(model, reSampleStep);
 
     std::cout << "model sample step:" << sampleStep << std::endl;
 
+    auto &sampledModel = impl_->sampledModel;
     if (sampledModel.normal.empty())
         sampledModel.normal = estimateNormal(sampledModel, model);
 
     //[2] create hash table
     std::map<uint32_t, std::vector<Feature>> hashTable;
 
-    float lambda       = 0.98f;
-    int   size         = sampledModel.point.size();
-    float angleStep    = impl_->featAngleRadians;
-    float distanceStep = impl_->featDistanceStep;
-    for (int i = 0; i < size; i++) {
+    // float lambda = 0.98f;
+    auto size = sampledModel.point.size();
+    for (std::size_t i = 0; i < size; i++) {
         auto &p1 = sampledModel.point[ i ];
         auto &n1 = sampledModel.normal[ i ];
         for (int j = 0; j < size; j++) {
             if (i == j)
                 continue;
 
-            auto &p2        = sampledModel.point[ j ];
-            auto &n2        = sampledModel.normal[ j ];
-            auto  f         = computePPF(p1, p2, n1, n2);
-            auto  hash      = hashPPF(f, angleStep, distanceStep);
-            auto  alpha     = computeAlpha(p1, p2, n1);
-            float dp        = n1.dot(n2);
-            float voteValue = 1; // - lambda * std::abs(dp); //角度差异越大，投票分数越大
+            auto &p2    = sampledModel.point[ j ];
+            auto &n2    = sampledModel.normal[ j ];
+            auto  f     = computePPF(p1, p2, n1, n2);
+            auto  hash  = hashPPF(f, angleStep, distanceStep);
+            auto  alpha = computeAlpha(p1, p2, n1);
+            // float dp        = n1.dot(n2);
+            float voteValue = 1; // 1 - lambda * std::abs(dp); //角度差异越大，投票分数越大
 
             hashTable[ hash ].emplace_back(i, alpha, voteValue);
         }
     }
 
-    impl_->trained      = true;
-    impl_->hashTable    = std::move(hashTable);
-    impl_->sampledModel = std::move(sampledModel);
+    impl_->hashTable = std::move(hashTable);
 }
 
 void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &poses,
                           std::vector<float> &scores, float samplingDistanceRel,
-                          float keyPointFraction, float minScore, int numMatches) {
+                          float keyPointFraction, float minScore, MatchParam param) {
     //[1] check input date
-    if (!impl_->trained)
+    if (!impl_)
         throw std::runtime_error("No trained model in matchScene");
 
     if (samplingDistanceRel > 1 || samplingDistanceRel < 0)
@@ -129,9 +122,6 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     if (minScore > 1 || minScore < 0)
         throw std::range_error("Invalid Input: minScore range mismatch in matchScene");
 
-    if (numMatches < 0)
-        throw std::range_error("Invalid Input: numMatches range mismatch in matchScene");
-
     if (scene.point.empty())
         throw std::runtime_error("Invalid Input: empty scene in matchScene");
 
@@ -139,30 +129,50 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         scene.box = computeBoundingBox(scene);
 
     //[2] prepare data
+    //[2.1] data from IMPL
+    float modelDiameter   = impl_->sampledModel.box.diameter();
+    float angleStep       = M_2PI / (float)impl_->param.featAngleResolution;
+    float distanceStep    = modelDiameter * impl_->param.featDistanceStepRel;
+    int   angleNum        = impl_->param.featAngleResolution;
+    auto  refNum          = impl_->sampledModel.point.size();
+    auto &hashTable       = impl_->hashTable;
+    auto &modelSampled    = impl_->sampledModel;
+    int   maxAngleIndex   = angleNum - 1;
+    float squaredDiameter = modelDiameter * modelDiameter;
+
+    //[2.2] data from keyPointFraction/samplingDistanceRel
+    int sceneStep = floor(1 / keyPointFraction);
+
     BoxGrid grid;
-    float   modelDiameter = impl_->sampledModel.box.diameter();
-    float   sampleStep    = modelDiameter * samplingDistanceRel;
-    auto    sampledScene  = samplePointCloud(scene, sampleStep, &grid);
-
-    std::cout << "scene sample step:" << sampleStep << std::endl;
-
+    float   sampleStep   = modelDiameter * samplingDistanceRel;
+    auto    sampledScene = samplePointCloud(scene, sampleStep, &grid);
+    int     nStep        = ceil(modelDiameter / grid.step);
     if (sampledScene.normal.empty())
         sampledScene.normal = estimateNormal(sampledScene, scene);
 
-    int   sceneStep     = floor(1 / keyPointFraction);
-    int   nStep         = ceil(modelDiameter / grid.step);
-    int   size          = sampledScene.point.size();
-    int   refNum        = impl_->sampledModel.point.size();
-    int   angleNum      = impl_->featAngleResolution;
-    int   maxAngleIndex = angleNum - 1;
-    float r2            = modelDiameter * modelDiameter;
-    float angleStep     = impl_->featAngleRadians;
-    float distanceStep  = impl_->featDistanceStep;
-    auto &hashTable     = impl_->hashTable;
-    auto &modelSampled  = impl_->sampledModel;
+    std::cout << "scene sample step:" << sampleStep << std::endl;
 
+    //[2.3] data from param
+    float maxOverlapDist = 0;
+    if (param.maxOverlapDistRel > 0)
+        maxOverlapDist = modelDiameter * param.maxOverlapDistRel;
+    if (param.maxOverlapDistAbs > 0)
+        maxOverlapDist = param.maxOverlapDistAbs;
+
+    float poseRefDistThreshold = 0;
+    if (param.poseRefDistThresholdRel > 0)
+        poseRefDistThreshold = modelDiameter * param.poseRefDistThresholdRel;
+    if (param.poseRefDistThresholdAbs > 0)
+        poseRefDistThreshold = param.poseRefDistThresholdAbs;
+
+    float poseRefScoringDist = 0;
+    if (param.poseRefScoringDistRel > 0)
+        poseRefScoringDist = modelDiameter * param.poseRefScoringDistRel;
+    if (param.poseRefScoringDistAbs > 0)
+        poseRefScoringDist = param.poseRefScoringDistAbs;
+
+    auto              size = sampledScene.point.size();
     std::vector<Pose> poseList;
-
     for (int count = 0; count < size; count += sceneStep) {
         auto &p1 = sampledScene.point[ count ];
         auto &n1 = sampledScene.normal[ count ];
@@ -199,7 +209,7 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
 
                     auto &p2 = sampledScene.point[ pointIndex ];
                     auto &n2 = sampledScene.normal[ pointIndex ];
-                    if (count == pointIndex || (p2 - p1).squaredNorm() > r2)
+                    if (count == pointIndex || (p2 - p1).squaredNorm() > squaredDiameter)
                         continue;
 
                     auto f    = computePPF(p1, p2, n1, n2);
@@ -216,12 +226,12 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
                     for (auto &feature : nodeList) {
                         auto  alphaModel = feature.alphaAngle;
                         float alphaAngle = alphaModel - alphaScene;
-                        if (alphaAngle > M_PI)
-                            alphaAngle = alphaAngle - 2.0f * M_PI;
-                        else if (alphaAngle < (-M_PI))
-                            alphaAngle = alphaAngle + 2.0f * M_PI;
+                        if (alphaAngle > (float)M_PI)
+                            alphaAngle = alphaAngle - 2.0f * (float)M_PI;
+                        else if (alphaAngle < (float)(-M_PI))
+                            alphaAngle = alphaAngle + 2.0f * (float)M_PI;
 
-                        int angleIndex = round(maxAngleIndex * (alphaAngle + M_PI) / M_2PI);
+                        int angleIndex = round(maxAngleIndex * (alphaAngle + (float)M_PI) / M_2PI);
                         accumulator[ feature.refInd ][ angleIndex ] += feature.voteValue;
                     }
                 }
@@ -229,19 +239,19 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         }
 
         // [4]nms
-        float accuMax = 0;
+        float maxVal = 0;
         for (auto &item1 : accumulator) {
             for (auto &item2 : item1) {
-                if (item2 > accuMax)
-                    accuMax = item2;
+                if (item2 > maxVal)
+                    maxVal = item2;
             }
         }
 
-        accuMax = accuMax * 0.95f;
+        maxVal = maxVal * 0.95f;
         for (int i = 0; i < accumulator.size(); i++) {
             for (int j = 0; j < angleNum; j++) {
                 auto &vote = accumulator[ i ][ j ];
-                if (vote <= accuMax)
+                if (vote <= maxVal)
                     continue;
 
                 auto            pMax = modelSampled.point[ i ];
@@ -269,49 +279,28 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     auto avgPoses = avgClusters(clusters);
     auto sorted   = sortPoses(avgPoses);
     auto center   = impl_->sampledModel.box.center();
-    auto cluster2 = clusterPose2(sorted, center, 0.5f * modelDiameter);
+    auto cluster2 = clusterPose2(sorted, center, maxOverlapDist);
 
     std::cout << "sampledModel:" << impl_->sampledModel.point.size() << "\n"
-              << "sampledScend:" << sampledScene.point.size() << std::endl;
+              << "sampledScene:" << sampledScene.point.size() << std::endl;
 
     //[6] icp
-    ICP icp(ConvergenceCriteria(10, sampleStep, sampleStep * 0.5, sampleStep));
-    for (int i = 0; i < cluster2.size(); i++) {
-        auto &p       = cluster2[ i ];
-        auto  refined = icp.regist(impl_->sampledModel, sampledScene, p.pose.matrix());
-
-        std::cout << "------" << i << ":vote(" << p.numVotes << ")---------\n"
-                  << p.pose.matrix() << std::endl;
-        if (p.numVotes < 9)
-            break;
-
-        auto &result = refined;
-        std::cout << "=======================\nconverged: " << result.converged << "\n"
-                  << "type: " << static_cast<int>(result.type) << "\n"
-                  << "mse: " << result.mse << "\n"
-                  << "convergeRate: " << result.convergeRate << "\n"
-                  << "iterations: " << result.iterations << "\n"
-                  << "inliner: " << result.inliner << "\n"
-                  << "pose: \n"
-                  << result.pose << std::endl;
-
-        // auto pct1 = transformPointCloud(impl_->sampledModel, p.pose.matrix());
-        // auto pct2 = transformPointCloud(impl_->sampledModel, refined.pose);
-        //
-        // saveText(std::string("matched") + std::to_string(i) + ".txt", pct1);
-        // saveText(std::string("refined") + std::to_string(i) + ".txt", pct2);
-
+    ICP sparseIcp(ConvergenceCriteria(5, sampleStep, sampleStep * 0.5, sampleStep * 0.6));
+    // ICP denseIcp(ConvergenceCriteria(param.poseRefNumSteps, ))
+    for (auto &p : cluster2) {
+        auto refined = sparseIcp.regist(impl_->sampledModel, sampledScene, p.pose.matrix());
         if (!refined.converged)
             continue;
 
         auto  expectedPoints = (refNum * 0.5f * refNum * 0.5f * keyPointFraction * 0.5f);
         float score1         = p.numVotes / expectedPoints;
 
-        std::cout << "expected size:" << expectedPoints << " score1:" << score1 << std::endl;
-
         float score = refined.inliner / float(refNum);
         if (score > 1.f)
             score = 1.f;
+
+        std::cout << "expected size:" << expectedPoints << " score1:" << score1
+                  << " score2:" << score << std::endl;
 
         if (score < minScore)
             continue;
@@ -319,18 +308,12 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         poses.push_back(refined.pose);
         scores.push_back(score);
 
-        if (poses.size() >= numMatches)
+        if (poses.size() >= param.numMatches)
             break;
     }
-
-    //{
-    //    auto pct = transformPointCloud(impl_->sampledModel, poses[ 0 ]);
-    //    saveText("model.txt", pct);
-    //    saveText("scene.txt", sampledScene);
-    //}
 }
 
-void Detector::save(const std::string &filename) {
+void Detector::save(const std::string &filename) const {
 }
 
 bool Detector::load(const std::string &filename) {

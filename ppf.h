@@ -21,22 +21,18 @@ class Detector {
 public:
     /**
      * @brief Construct a new Detector object
-     *
-     * @param featDistanceStepRel Set the discretization distance of the point pair distance
-     * relative to the object's diameter
-     * @param featAngleResolution Set the discretization of the point pair orientation as the number
-     * of subdivisions of the angle
      */
-    explicit Detector(float featDistanceStepRel = 0.04f, int featAngleResolution = 30);
-    ~Detector();
+    Detector();
 
     /**
      * @brief train point pair feature
      *
      * @param model model point cloud
      * @param samplingDistanceRel Sampling distance relative to the object's diameter
+     * @param param please see TrainParam
      */
-    void trainModel(ppf::PointCloud &model, float samplingDistanceRel = 0.04f);
+    void trainModel(ppf::PointCloud &model, float samplingDistanceRel = 0.04f,
+                    TrainParam param = TrainParam());
 
     /**
      * @brief find matched-model in scene
@@ -47,18 +43,19 @@ public:
      * @param samplingDistanceRel Scene sampling distance relative to the diameter of the model
      * @param keyPointFraction Fraction of sampled scene points used as key points
      * @param minScore Minimum score of the returned poses
-     * @param numMatches Sets the maximum number of matches that are returned
+     * @param param please see MatchParam
      */
     void matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &pose,
                     std::vector<float> &score, float samplingDistanceRel = 0.04f,
-                    float keyPointFraction = 0.2f, float minScore = 0.2f, int numMatches = 5);
+                    float keyPointFraction = 0.2f, float minScore = 0.2f,
+                    MatchParam param = MatchParam());
 
     /**
      * @brief save trained ppf model to file
      *
      * @param filename
      */
-    void save(const std::string &filename);
+    void save(const std::string &filename) const;
 
     /**
      * @brief load ppf model from file
