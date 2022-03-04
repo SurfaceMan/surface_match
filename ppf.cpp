@@ -1,4 +1,5 @@
 #include <helper.h>
+#include <icp.h>
 #include <ppf.h>
 #include <util.h>
 
@@ -101,7 +102,7 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel) {
             auto  hash      = hashPPF(f, angleStep, distanceStep);
             auto  alpha     = computeAlpha(p1, p2, n1);
             float dp        = n1.dot(n2);
-            float voteValue = 1 - lambda * std::abs(dp); //角度差异越大，投票分数越大
+            float voteValue = 1; // - lambda * std::abs(dp); //角度差异越大，投票分数越大
 
             hashTable[ hash ].emplace_back(i, alpha, voteValue);
         }
@@ -112,8 +113,8 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel) {
     impl_->sampledModel = std::move(sampledModel);
 }
 
-void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &pose,
-                          std::vector<float> &score, float samplingDistanceRel,
+void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &poses,
+                          std::vector<float> &scores, float samplingDistanceRel,
                           float keyPointFraction, float minScore, int numMatches) {
     //[1] check input date
     if (!impl_->trained)
@@ -265,21 +266,68 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
 
     //[5] cluster
     auto clusters = clusterPose(poseList, 0.1f * modelDiameter, angleStep);
-    auto poses    = avgClusters(clusters);
-    auto sorted   = sortPoses(poses);
+    auto avgPoses = avgClusters(clusters);
+    auto sorted   = sortPoses(avgPoses);
+    auto center   = impl_->sampledModel.box.center();
+    auto cluster2 = clusterPose2(sorted, center, 0.5f * modelDiameter);
+
+    std::cout << "sampledModel:" << impl_->sampledModel.point.size() << "\n"
+              << "sampledScend:" << sampledScene.point.size() << std::endl;
 
     //[6] icp
-    for (int i = 0; i < std::min((int)sorted.size(), numMatches); i++) {
-        auto &p = sorted[ i ];
-        pose.push_back(p.pose.matrix());
-        score.push_back(p.numVotes);
+    ICP icp(ConvergenceCriteria(10, sampleStep, sampleStep * 0.5, sampleStep));
+    for (int i = 0; i < cluster2.size(); i++) {
+        auto &p       = cluster2[ i ];
+        auto  refined = icp.regist(impl_->sampledModel, sampledScene, p.pose.matrix());
+
+        std::cout << "------" << i << ":vote(" << p.numVotes << ")---------\n"
+                  << p.pose.matrix() << std::endl;
+        if (p.numVotes < 9)
+            break;
+
+        auto &result = refined;
+        std::cout << "=======================\nconverged: " << result.converged << "\n"
+                  << "type: " << static_cast<int>(result.type) << "\n"
+                  << "mse: " << result.mse << "\n"
+                  << "convergeRate: " << result.convergeRate << "\n"
+                  << "iterations: " << result.iterations << "\n"
+                  << "inliner: " << result.inliner << "\n"
+                  << "pose: \n"
+                  << result.pose << std::endl;
+
+        // auto pct1 = transformPointCloud(impl_->sampledModel, p.pose.matrix());
+        // auto pct2 = transformPointCloud(impl_->sampledModel, refined.pose);
+        //
+        // saveText(std::string("matched") + std::to_string(i) + ".txt", pct1);
+        // saveText(std::string("refined") + std::to_string(i) + ".txt", pct2);
+
+        if (!refined.converged)
+            continue;
+
+        auto  expectedPoints = (refNum * 0.5f * refNum * 0.5f * keyPointFraction * 0.5f);
+        float score1         = p.numVotes / expectedPoints;
+
+        std::cout << "expected size:" << expectedPoints << " score1:" << score1 << std::endl;
+
+        float score = refined.inliner / float(refNum);
+        if (score > 1.f)
+            score = 1.f;
+
+        if (score < minScore)
+            continue;
+
+        poses.push_back(refined.pose);
+        scores.push_back(score);
+
+        if (poses.size() >= numMatches)
+            break;
     }
 
-    {
-        auto pct = transformPointCloud(impl_->sampledModel, pose[ 0 ]);
-        saveText("model.txt", pct);
-        saveText("scene.txt", sampledScene);
-    }
+    //{
+    //    auto pct = transformPointCloud(impl_->sampledModel, poses[ 0 ]);
+    //    saveText("model.txt", pct);
+    //    saveText("scene.txt", sampledScene);
+    //}
 }
 
 void Detector::save(const std::string &filename) {

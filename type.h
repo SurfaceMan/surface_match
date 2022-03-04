@@ -29,6 +29,7 @@ public:
     BoundingBox &operator=(const BoundingBox &rhs);
 
     Eigen::Vector3f size() const;
+    Eigen::Vector3f center() const;
     float           diameter() const;
 };
 

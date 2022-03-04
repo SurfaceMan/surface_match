@@ -24,6 +24,10 @@ Eigen::Vector3f BoundingBox::size() const {
     return max - min;
 }
 
+Eigen::Vector3f BoundingBox::center() const {
+    return (min + max) / 2.f;
+}
+
 float BoundingBox::diameter() const {
     return size().norm();
 }

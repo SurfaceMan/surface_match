@@ -71,6 +71,16 @@ inline Eigen::Matrix4f XRotMat(float angle) {
 std::vector<std::vector<Pose>> clusterPose(const std::vector<Pose> &poseList,
                                            float distanceThreshold, float angleThreshold);
 
+/**
+ * @brief cluster by overlap
+ *
+ * @param poseList
+ * @param pos
+ * @param threshold
+ * @return std::vector<Pose>
+ */
+std::vector<Pose> clusterPose2(std::vector<Pose> &poseList, Eigen::Vector3f &pos, float threshold);
+
 std::vector<Pose> sortPoses(std::vector<Pose> poseList);
 
 std::vector<Pose> avgClusters(const std::vector<std::vector<Pose>> &clusters);

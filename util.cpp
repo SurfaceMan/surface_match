@@ -320,6 +320,39 @@ std::vector<std::vector<Pose>> clusterPose(const std::vector<Pose> &poseList,
     return clusters;
 }
 
+std::vector<Pose> clusterPose2(std::vector<Pose> &poseList, Eigen::Vector3f &pos, float threshold) {
+    Eigen::Vector4f p(pos.x(), pos.y(), pos.z(), 1);
+
+    std::vector<Eigen::Vector4f> trans;
+    trans.reserve(poseList.size());
+    for (auto &pose : poseList) {
+        trans.push_back(pose.pose.matrix() * p);
+    }
+
+    float             squaredThre = threshold * threshold;
+    std::vector<bool> used(poseList.size(), false);
+    std::vector<Pose> result;
+    for (int i = 0; i < poseList.size(); i++) {
+        if (used[ i ])
+            continue;
+
+        auto poseI = poseList[ i ];
+
+        for (int j = i + 1; j < poseList.size(); j++) {
+            if (used[ j ])
+                continue;
+            if ((trans[ i ] - trans[ j ]).squaredNorm() < squaredThre) {
+                poseI.numVotes += poseList[ j ].numVotes;
+                used[ j ] = true;
+            }
+        }
+
+        result.push_back(poseI);
+    }
+
+    return result;
+}
+
 Eigen::Quaternionf avgQuaternionMarkley(const std::vector<Eigen::Quaternionf> &qs) {
     Eigen::Matrix4f A = Eigen::Matrix4f::Zero();
     int             M = qs.size();
