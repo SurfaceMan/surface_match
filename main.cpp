@@ -3,33 +3,35 @@
 #include <ppf.h>
 #include <util.h>
 
-int main2(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
     auto model = ppf::loadText(argv[ 1 ]);
     auto scene = ppf::loadText(argv[ 2 ]);
 
     ppf::Detector detector;
     {
         ppf::Timer t("train model");
-        detector.trainModel(model, 0.04);
+        detector.trainModel(model, 0.04f);
     }
 
     std::vector<Eigen::Matrix4f> pose;
     std::vector<float>           score;
     {
         ppf::Timer t("match scene");
-        detector.matchScene(scene, pose, score, 0.04);
+        detector.matchScene(scene, pose, score, 0.04f, 0.2f, 0.5f, 1);
     }
 
-    auto pc = ppf::transformPointCloud(model, pose[ 0 ]);
-    ppf::saveText("out.txt", pc);
+    for (int i = 0; i < pose.size(); i++) {
+        auto pc = ppf::transformPointCloud(model, pose[ i ]);
+        ppf::saveText(std::string("out") + std::to_string(i) + ".txt", pc);
 
-    std::cout << pose[ 0 ] << std::endl;
-    std::cout << score[ 0 ] << std::endl;
+        std::cout << pose[ i ] << std::endl;
+        std::cout << score[ i ] << std::endl;
+    }
 
     return 0;
 }
 
-int main(int argc, char *argv[]) {
+int main2(int argc, char *argv[]) {
     auto model  = ppf::loadText(argv[ 1 ]);
     auto scene  = ppf::loadText(argv[ 2 ]);
     auto model2 = ppf::loadText(argv[ 3 ]);
@@ -57,4 +59,6 @@ int main(int argc, char *argv[]) {
         auto pct = ppf::transformPointCloud(model2, result.pose);
         ppf::saveText("out2.txt", pct);
     }
+
+    return 0;
 }
