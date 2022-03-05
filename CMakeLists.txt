@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(ppf)
 
-#find_package(Eigen3 REQUIRED)
+find_package(Eigen3)
 
 add_executable(ppf  
     main.cpp ppf.h ppf.cpp util.h util.cpp type.h type.cpp icp.h icp.cpp KDTreeVectorOfVectorsAdaptor.h

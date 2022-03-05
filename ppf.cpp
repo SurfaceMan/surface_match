@@ -290,8 +290,8 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
 
     //[6] icp
     ICP sparseIcp(ConvergenceCriteria(5, sampleStep, sampleStep * 0.5, sampleStep * 0.6));
-    ICP denseIcp(ConvergenceCriteria(param.poseRefNumSteps, reSampleStep, reSampleStep * 0.5,
-                                     reSampleStep * 0.6));
+    ICP denseIcp(ConvergenceCriteria(param.poseRefNumSteps, poseRefScoringDist, reSampleStep * 0.5,
+                                     reSampleStep));
 
     PointCloud reSampledScene;
     if (param.densePoseRefinement) {

@@ -192,7 +192,7 @@ IterResult iteration(const PointCloud &srcPC, const PointCloud &dstPC, const kd_
 
     float mse = 0;
     for (auto &dist : distances2)
-        mse += std::sqrtf(dist);
+        mse += sqrtf(dist);
     mse /= (float)distances2.size();
 
     return IterResult{modelScenePair.size(), p, mse};
