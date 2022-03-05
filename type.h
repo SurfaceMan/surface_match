@@ -13,6 +13,7 @@
 
 #include <Eigen/Core>
 #include <Eigen/Geometry>
+#include <KDTreeVectorOfVectorsAdaptor.h>
 #include <map>
 #include <tuple>
 #include <vector>
@@ -185,5 +186,7 @@ public:
                         float poseRefDistThresholdRel = 0.1f, float poseRefDistThresholdAbs = 0,
                         float poseRefScoringDistRel = 0.005f, float poseRefScoringDistAbs = 0);
 };
+
+using KDTree = KDTreeVectorOfVectorsAdaptor<std::vector<Eigen::Vector3f>, float>;
 
 } // namespace ppf

@@ -43,6 +43,8 @@ void savePLY(const std::string &filename, const ppf::PointCloud &pc);
  */
 PointCloud samplePointCloud(const ppf::PointCloud &pc, float sampleStep, BoxGrid *grid = nullptr);
 
+PointCloud samplePointCloud2(const ppf::PointCloud &pc, float sampleStep, KDTree *kdtree = nullptr);
+
 BoundingBox computeBoundingBox(const ppf::PointCloud &pc);
 
 PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f &pose);
@@ -88,4 +90,8 @@ std::vector<Pose> avgClusters(const std::vector<std::vector<Pose>> &clusters);
 PointCloud loadText(const std::string &filename);
 
 void saveText(const std::string &filename, const PointCloud &pc);
+
+void findClosestPoint(const KDTree &kdtree, const PointCloud &srcPC, std::vector<int> &indices,
+                      std::vector<float> &distances);
+
 } // namespace ppf

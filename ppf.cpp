@@ -73,8 +73,10 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
     impl_                      = std::make_unique<IMPL>();
     impl_->samplingDistanceRel = samplingDistanceRel;
     impl_->param               = param;
-    impl_->sampledModel        = samplePointCloud(model, sampleStep);
-    impl_->reSampledModel      = samplePointCloud(model, reSampleStep);
+
+    KDTree kdtree(3, model.point);
+    impl_->sampledModel   = samplePointCloud2(model, sampleStep, &kdtree);
+    impl_->reSampledModel = samplePointCloud2(model, reSampleStep, &kdtree);
 
     std::cout << "model sample step:" << sampleStep << std::endl;
 
@@ -145,12 +147,10 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     float reSampleStep    = modelDiameter * impl_->param.poseRefRelSamplingDistance;
 
     //[2.2] data from keyPointFraction/samplingDistanceRel
-    int sceneStep = floor(1 / keyPointFraction);
-
-    BoxGrid grid;
-    float   sampleStep   = modelDiameter * samplingDistanceRel;
-    auto    sampledScene = samplePointCloud(scene, sampleStep, &grid);
-    int     nStep        = ceil(modelDiameter / grid.step);
+    KDTree sceneKdtree(3, scene.point);
+    int    sceneStep    = floor(1 / keyPointFraction);
+    float  sampleStep   = modelDiameter * samplingDistanceRel;
+    auto   sampledScene = samplePointCloud2(scene, sampleStep, &sceneKdtree);
     if (sampledScene.normal.empty())
         sampledScene.normal = estimateNormal(sampledScene, scene);
 
@@ -177,6 +177,8 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
 
     auto              size = sampledScene.point.size();
     std::vector<Pose> poseList;
+    KDTree            kdtree(3, sampledScene.point);
+
     for (int count = 0; count < size; count += sceneStep) {
         auto &p1 = sampledScene.point[ count ];
         auto &n1 = sampledScene.normal[ count ];
@@ -197,48 +199,35 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         iT.linear()      = iR;
         iT.translation() = it;
 
-        auto index  = grid.index2Grid(count);
-        int  iBegin = std::max(0, index.x() - nStep);
-        int  iEnd   = std::min(index.x() + nStep, grid.xBins);
-        int  jBegin = std::max(0, index.y() - nStep);
-        int  jEnd   = std::min(index.y() + nStep, grid.yBins);
-        int  kBegin = std::max(0, index.z() - nStep);
-        int  kEnd   = std::min(index.z() + nStep, grid.zBins);
-        for (int i = iBegin; i < iEnd; i++) {
-            for (int j = jBegin; j < jEnd; j++) {
-                for (int k = kBegin; k < kEnd; k++) {
-                    int pointIndex = grid.grid2Index({i, j, k});
-                    if (pointIndex == BoxGrid::INVALID)
-                        continue;
+        std::vector<std::pair<std::size_t, float>> indices;
+        kdtree.index->radiusSearch(&p1[ 0 ], squaredDiameter, indices, nanoflann::SearchParams());
+        for (std::size_t j = 1; j < indices.size(); j++) {
+            auto pointIndex = indices[ j ].first;
 
-                    auto &p2 = sampledScene.point[ pointIndex ];
-                    auto &n2 = sampledScene.normal[ pointIndex ];
-                    if (count == pointIndex || (p2 - p1).squaredNorm() > squaredDiameter)
-                        continue;
+            auto &p2 = sampledScene.point[ pointIndex ];
+            auto &n2 = sampledScene.normal[ pointIndex ];
 
-                    auto f    = computePPF(p1, p2, n1, n2);
-                    auto hash = hashPPF(f, angleStep, distanceStep);
-                    if (hashTable.find(hash) == hashTable.end())
-                        continue;
+            auto f    = computePPF(p1, p2, n1, n2);
+            auto hash = hashPPF(f, angleStep, distanceStep);
+            if (hashTable.find(hash) == hashTable.end())
+                continue;
 
-                    Eigen::Vector3f p2t        = R * p2 + t;
-                    float           alphaScene = atan2(-p2t(2), p2t(1));
-                    if (sin(alphaScene) * p2t(2) > 0)
-                        alphaScene = -alphaScene;
+            Eigen::Vector3f p2t        = R * p2 + t;
+            float           alphaScene = atan2(-p2t(2), p2t(1));
+            if (sin(alphaScene) * p2t(2) > 0)
+                alphaScene = -alphaScene;
 
-                    auto &nodeList = hashTable[ hash ];
-                    for (auto &feature : nodeList) {
-                        auto  alphaModel = feature.alphaAngle;
-                        float alphaAngle = alphaModel - alphaScene;
-                        if (alphaAngle > (float)M_PI)
-                            alphaAngle = alphaAngle - 2.0f * (float)M_PI;
-                        else if (alphaAngle < (float)(-M_PI))
-                            alphaAngle = alphaAngle + 2.0f * (float)M_PI;
+            auto &nodeList = hashTable[ hash ];
+            for (auto &feature : nodeList) {
+                auto  alphaModel = feature.alphaAngle;
+                float alphaAngle = alphaModel - alphaScene;
+                if (alphaAngle > (float)M_PI)
+                    alphaAngle = alphaAngle - 2.0f * (float)M_PI;
+                else if (alphaAngle < (float)(-M_PI))
+                    alphaAngle = alphaAngle + 2.0f * (float)M_PI;
 
-                        int angleIndex = round(maxAngleIndex * (alphaAngle + (float)M_PI) / M_2PI);
-                        accumulator[ feature.refInd ][ angleIndex ] += feature.voteValue;
-                    }
-                }
+                int angleIndex = round(maxAngleIndex * (alphaAngle + (float)M_PI) / M_2PI);
+                accumulator[ feature.refInd ][ angleIndex ] += feature.voteValue;
             }
         }
 
@@ -293,9 +282,11 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     ICP denseIcp(ConvergenceCriteria(param.poseRefNumSteps, poseRefScoringDist, reSampleStep * 0.5,
                                      reSampleStep));
 
-    PointCloud reSampledScene;
+    PointCloud              reSampledScene;
+    std::unique_ptr<KDTree> reSampledKdtree;
     if (param.densePoseRefinement) {
-        reSampledScene = samplePointCloud(scene, reSampleStep);
+        reSampledScene  = samplePointCloud2(scene, reSampleStep, &sceneKdtree);
+        reSampledKdtree = std::make_unique<KDTree>(3, reSampledScene.point);
     }
 
     using Target = std::pair<float, Eigen::Matrix4f>;
@@ -305,7 +296,7 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         auto score = p.numVotes;
 
         if (param.sparsePoseRefinement) {
-            auto refined = sparseIcp.regist(impl_->sampledModel, sampledScene, pose);
+            auto refined = sparseIcp.regist(impl_->sampledModel, sampledScene, kdtree, pose);
             if (!refined.converged)
                 continue;
 
@@ -318,7 +309,8 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         }
 
         if (param.sparsePoseRefinement && param.densePoseRefinement) {
-            auto refined = denseIcp.regist(impl_->reSampledModel, reSampledScene, pose);
+            auto refined =
+                denseIcp.regist(impl_->reSampledModel, reSampledScene, *reSampledKdtree, pose);
             if (!refined.converged)
                 continue;
 

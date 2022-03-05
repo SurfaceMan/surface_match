@@ -74,12 +74,37 @@ public:
     /**
      * @brief register source to target
      *
+     * @param src source must has normal
+     * @param dst target must has normal
+     * @param kdtree KDTree for target point
+     * @param initPose source initial pose
+     * @return ConvergenceResult
+     */
+    ConvergenceResult regist(const PointCloud &src, const PointCloud &dst, const KDTree &kdtree,
+                             const Eigen::Matrix4f &initPose = Eigen::Matrix4f::Identity()) const;
+
+    /**
+     * @brief register source to target
+     *
      * @param src source
      * @param dst target
      * @param initPose source initial pose
      * @return std::vector<ConvergenceResult> same order as initPose
      */
     std::vector<ConvergenceResult> regist(const PointCloud &src, const PointCloud &dst,
+                                          const std::vector<Eigen::Matrix4f> &initPose) const;
+
+    /**
+     * @brief register source to target
+     *
+     * @param src source must has normal
+     * @param dst target must has normal
+     * @param kdtree KDTree for target point
+     * @param initPose source initial pose
+     * @return ConvergenceResult
+     */
+    std::vector<ConvergenceResult> regist(const PointCloud &src, const PointCloud &dst,
+                                          const KDTree                       &kdtree,
                                           const std::vector<Eigen::Matrix4f> &initPose) const;
 
 private:

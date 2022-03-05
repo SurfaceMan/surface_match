@@ -115,6 +115,50 @@ PointCloud samplePointCloud(const ppf::PointCloud &pc, float sampleStep, BoxGrid
     return result;
 }
 
+PointCloud samplePointCloud2(const ppf::PointCloud &pc, float sampleStep, KDTree *tree) {
+    KDTree *kdtree     = tree;
+    bool    needDelete = false;
+
+    if (!kdtree) {
+        kdtree     = new KDTree(3, pc.point);
+        needDelete = true;
+    }
+
+    auto                                size = pc.point.size();
+    std::vector<bool>                   keep(size, true);
+    const std::vector<Eigen::Vector3f> &points = pc.point;
+
+    for (std::size_t i = 0; i < size; i++) {
+        if (!keep[ i ])
+            continue;
+
+        auto                                      &point = pc.point[ i ];
+        std::vector<std::pair<std::size_t, float>> indices;
+        kdtree->index->radiusSearch(&point[ 0 ], sampleStep * sampleStep, indices,
+                                    nanoflann::SearchParams());
+
+        for (std::size_t j = 1; j < indices.size(); j++)
+            keep[ indices[ j ].first ] = false;
+    }
+
+    PointCloud result;
+    bool       hasNormal = pc.hasNormal();
+    for (std::size_t i = 0; i < size; i++) {
+        if (!keep[ i ])
+            continue;
+
+        result.point.emplace_back(pc.point[ i ]);
+        if (hasNormal)
+            result.normal.emplace_back(pc.normal[ i ]);
+    }
+
+    result.box = pc.box;
+    if (result.box.diameter() == 0)
+        result.box = computeBoundingBox(result);
+
+    return result;
+}
+
 BoundingBox computeBoundingBox(const ppf::PointCloud &pc) {
     Eigen::Vector3f min = pc.point[ 0 ];
     Eigen::Vector3f max = min;
@@ -429,5 +473,27 @@ void saveText(const std::string &filename, const PointCloud &pc) {
             << n.z() << '\n';
     }
     out.close();
+}
+
+void findClosestPoint(const KDTree &kdtree, const PointCloud &srcPC, std::vector<int> &indices,
+                      std::vector<float> &distances) {
+
+    const int          numResult = 1;
+    std::vector<int>   indicesTmp;
+    std::vector<float> distancesTmp;
+    for (auto &point : srcPC.point) {
+        std::vector<size_t>            indexes(numResult);
+        std::vector<float>             dists(numResult);
+        nanoflann::KNNResultSet<float> resultSet(1);
+        resultSet.init(&indexes[ 0 ], &dists[ 0 ]);
+
+        kdtree.index->findNeighbors(resultSet, &point[ 0 ], nanoflann::SearchParams());
+
+        indicesTmp.push_back(indexes[ 0 ]);
+        distancesTmp.push_back(dists[ 0 ]);
+    }
+
+    indices   = std::move(indicesTmp);
+    distances = std::move(distancesTmp);
 }
 } // namespace ppf

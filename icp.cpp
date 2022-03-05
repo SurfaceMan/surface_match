@@ -28,31 +28,6 @@ ICP::ICP(ConvergenceCriteria criteria)
     : criteria_(criteria) {
 }
 
-typedef std::vector<Eigen::Vector3f>                   vectors_t;
-typedef KDTreeVectorOfVectorsAdaptor<vectors_t, float> kd_tree_t;
-
-void findClosestPoint(const kd_tree_t &kdtree, const PointCloud &srcPC, std::vector<int> &indices,
-                      std::vector<float> &distances) {
-
-    const int          numResult = 1;
-    std::vector<int>   indicesTmp;
-    std::vector<float> distancesTmp;
-    for (auto &point : srcPC.point) {
-        std::vector<size_t>            indexes(numResult);
-        std::vector<float>             dists(numResult);
-        nanoflann::KNNResultSet<float> resultSet(1);
-        resultSet.init(&indexes[ 0 ], &dists[ 0 ]);
-
-        kdtree.index->findNeighbors(resultSet, &point[ 0 ], nanoflann::SearchParams());
-
-        indicesTmp.push_back(indexes[ 0 ]);
-        distancesTmp.push_back(dists[ 0 ]);
-    }
-
-    indices   = std::move(indicesTmp);
-    distances = std::move(distancesTmp);
-}
-
 Eigen::Matrix3f xyz2Matrix(float rx, float ry, float rz) {
     Eigen::AngleAxisf AngleRx(rx, Eigen::Vector3f::UnitX());
     Eigen::AngleAxisf AngleRy(ry, Eigen::Vector3f::UnitY());
@@ -118,7 +93,7 @@ float getRejectThreshold(const std::vector<float> &distances, float rejectScale)
 }
 
 std::vector<std::pair<int, int>> findCorresponds(const PointCloud &srcPC, const PointCloud &dstPC,
-                                                 const kd_tree_t &kdtree, float rejectionScale) {
+                                                 const KDTree &kdtree, float rejectionScale) {
     std::vector<int>   indicies;
     std::vector<float> distances;
 
@@ -163,7 +138,7 @@ struct IterResult {
     float           mse        = std::numeric_limits<float>::max();
 };
 
-IterResult iteration(const PointCloud &srcPC, const PointCloud &dstPC, const kd_tree_t &kdtree,
+IterResult iteration(const PointCloud &srcPC, const PointCloud &dstPC, const KDTree &kdtree,
                      float rejectionScale) {
     auto modelScenePair = findCorresponds(srcPC, dstPC, kdtree, rejectionScale);
     if (modelScenePair.size() < 6)
@@ -198,7 +173,7 @@ IterResult iteration(const PointCloud &srcPC, const PointCloud &dstPC, const kd_
     return IterResult{modelScenePair.size(), p, mse};
 }
 
-int inliner(const PointCloud &srcPC, const kd_tree_t &kdtree, float inlineDist) {
+int inliner(const PointCloud &srcPC, const KDTree &kdtree, float inlineDist) {
     std::vector<int>   indices;
     std::vector<float> distances;
     findClosestPoint(kdtree, srcPC, indices, distances);
@@ -218,7 +193,20 @@ ConvergenceResult ICP::regist(const PointCloud &src, const PointCloud &dst,
     return regist(src, dst, std::vector<Eigen::Matrix4f>{initPose})[ 0 ];
 }
 
+ConvergenceResult ICP::regist(const PointCloud &src, const PointCloud &dst, const KDTree &kdtree,
+                              const Eigen::Matrix4f &initPose) const {
+    return regist(src, dst, kdtree, std::vector<Eigen::Matrix4f>{initPose})[ 0 ];
+}
+
 std::vector<ConvergenceResult> ICP::regist(const PointCloud &src, const PointCloud &dst,
+                                           const std::vector<Eigen::Matrix4f> &initPoses) const {
+    // initialize
+    KDTree kdtree(3, dst.point, 10);
+    return regist(src, dst, kdtree, initPoses);
+}
+
+std::vector<ConvergenceResult> ICP::regist(const PointCloud &src, const PointCloud &dst,
+                                           const KDTree                       &kdtree,
                                            const std::vector<Eigen::Matrix4f> &initPoses) const {
     if (!src.hasNormal() || !dst.hasNormal())
         throw std::runtime_error("PointCloud empty or no normal at ICP::regist");
@@ -229,10 +217,6 @@ std::vector<ConvergenceResult> ICP::regist(const PointCloud &src, const PointClo
         throw std::runtime_error("Invalid ConvergenceCriteria at ICP::regist");
 
     std::vector<ConvergenceResult> results(initPoses.size());
-
-    // initialize
-    kd_tree_t kdtree(3, dst.point, 10);
-    kdtree.index->buildIndex();
 
     for (int i = 0; i < initPoses.size(); i++) {
         auto &initPose = initPoses[ i ];
