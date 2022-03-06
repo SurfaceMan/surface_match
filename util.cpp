@@ -127,15 +127,16 @@ PointCloud samplePointCloud2(const ppf::PointCloud &pc, float sampleStep, KDTree
     auto                                size = pc.point.size();
     std::vector<bool>                   keep(size, true);
     const std::vector<Eigen::Vector3f> &points = pc.point;
+    auto                                radius = sampleStep * sampleStep;
 
+#pragma parallel for
     for (std::size_t i = 0; i < size; i++) {
         if (!keep[ i ])
             continue;
 
         auto                                      &point = pc.point[ i ];
         std::vector<std::pair<std::size_t, float>> indices;
-        kdtree->index->radiusSearch(&point[ 0 ], sampleStep * sampleStep, indices,
-                                    nanoflann::SearchParams());
+        kdtree->index->radiusSearch(&point[ 0 ], radius, indices, nanoflann::SearchParams());
 
         for (std::size_t j = 1; j < indices.size(); j++)
             keep[ indices[ j ].first ] = false;

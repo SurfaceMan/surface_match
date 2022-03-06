@@ -89,6 +89,7 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
 
     // float lambda = 0.98f;
     auto size = sampledModel.point.size();
+#pragma omp parallel for
     for (std::size_t i = 0; i < size; i++) {
         auto &p1 = sampledModel.point[ i ];
         auto &n1 = sampledModel.normal[ i ];
@@ -103,8 +104,8 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
             auto  alpha = computeAlpha(p1, p2, n1);
             // float dp        = n1.dot(n2);
             float voteValue = 1; // 1 - lambda * std::abs(dp); //角度差异越大，投票分数越大
-
-            hashTable[ hash ].emplace_back(i, alpha, voteValue);
+#pragma omp critical
+            { hashTable[ hash ].emplace_back(i, alpha, voteValue); }
         }
     }
 
@@ -179,6 +180,7 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     std::vector<Pose> poseList;
     KDTree            kdtree(3, sampledScene.point);
 
+#pragma omp parallel for
     for (int count = 0; count < size; count += sceneStep) {
         auto &p1 = sampledScene.point[ count ];
         auto &n1 = sampledScene.normal[ count ];
@@ -262,7 +264,8 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
                 Pose            pose(vote);
                 pose.updatePose(TPose);
 
-                poseList.push_back(pose);
+#pragma omp critical
+                { poseList.push_back(pose); }
             }
         }
     }
