@@ -150,7 +150,7 @@ PointCloud samplePointCloud2(const ppf::PointCloud &pc, float sampleStep, KDTree
 
         result.point.emplace_back(pc.point[ i ]);
         if (hasNormal)
-            result.normal.emplace_back(pc.normal[ i ]);
+            result.normal.emplace_back(pc.normal[ i ].normalized());
     }
 
     result.box = pc.box;
