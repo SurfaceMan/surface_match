@@ -191,7 +191,7 @@ public:
                         float maxOverlapDistRel = 0.5f, float maxOverlapDistAbs = 0,
                         bool sparsePoseRefinement = true, bool densePoseRefinement = true,
                         int poseRefNumSteps = 5, float poseRefDistThresholdRel = 0.1f,
-                        float poseRefDistThresholdAbs = 0, float poseRefScoringDistRel = 0.005f,
+                        float poseRefDistThresholdAbs = 0, float poseRefScoringDistRel = 0.01f,
                         float poseRefScoringDistAbs = 0);
 };
 
