@@ -234,6 +234,8 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
                     maxVal = item2;
             }
         }
+        if (maxVal < voteThreshold)
+            continue;
 
         auto iT = rt.inverse();
         maxVal  = maxVal * 0.95f;
