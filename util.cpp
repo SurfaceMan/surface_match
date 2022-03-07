@@ -303,16 +303,29 @@ void transformRT(const Eigen::Vector3f &p, const Eigen::Vector3f &n, Eigen::Matr
         axis(0) = 0;
         axis(1) = 1;
         axis(2) = 0;
-    } else {
-        float axisNorm = axis.norm();
-        if (axisNorm > 0)
-            axis /= axisNorm;
     }
 
     Eigen::AngleAxisf rotationVector(angle, axis.normalized());
-    R = Eigen::Matrix3f::Identity();
     R = rotationVector.toRotationMatrix(); // rotation matrix
     t = (-1) * R * p;
+}
+
+Eigen::Matrix4f transformRT(const Eigen::Vector3f &p, const Eigen::Vector3f &n) {
+    float           angle = acos(n.x());    // rotation angle
+    Eigen::Vector3f axis(0, n.z(), -n.y()); // rotation axis
+
+    if (n.y() == 0 && n.z() == 0) {
+        axis(0) = 0;
+        axis(1) = 1;
+        axis(2) = 0;
+    }
+
+    Eigen::AngleAxisf rotationVector(angle, axis.normalized());
+    Eigen::Matrix4f   transform = Eigen::Matrix4f::Identity();
+    transform.block(0, 0, 3, 3) = rotationVector.toRotationMatrix();
+    transform.block(0, 3, 3, 1) = (-1.f) * transform.block(0, 0, 3, 3) * p;
+
+    return transform;
 }
 
 float computeAlpha(const Eigen::Vector3f &p1, const Eigen::Vector3f &p2,

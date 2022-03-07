@@ -177,9 +177,10 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     if (param.poseRefScoringDistAbs > 0)
         poseRefScoringDist = param.poseRefScoringDistAbs;
 
-    auto              size = sampledScene.point.size();
-    std::vector<Pose> poseList;
-    KDTree            kdtree(3, sampledScene.point);
+    auto               size = sampledScene.point.size();
+    std::vector<Pose>  poseList;
+    KDTree             kdtree(3, sampledScene.point);
+    std::vector<float> item(angleNum, 0);
 
 #pragma omp parallel for
     for (int count = 0; count < size; count += sceneStep) {
@@ -187,50 +188,38 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         auto &n1 = sampledScene.normal[ count ];
 
         //[3] vote
-        std::vector<std::vector<float>> accumulator;
-        {
-            std::vector<float> item(angleNum, 0);
-            accumulator.resize(refNum, item);
-        }
-
-        Eigen::Matrix3f R;
-        Eigen::Vector3f t;
-        transformRT(p1, n1, R, t);
-        Eigen::Matrix3f iR = R.transpose();
-        Eigen::Vector3f it = (-1) * iR * t;
-        Eigen::Affine3f iT;
-        iT.linear()      = iR;
-        iT.translation() = it;
-
         std::vector<std::pair<std::size_t, float>> indices;
         auto searched = kdtree.index->radiusSearch(&p1[ 0 ], squaredDiameter, indices,
                                                    nanoflann::SearchParams());
         if (searched < voteThreshold)
             continue;
-        for (std::size_t j = 1; j < indices.size(); j++) {
-            auto pointIndex = indices[ j ].first;
 
-            auto &p2 = sampledScene.point[ pointIndex ];
-            auto &n2 = sampledScene.normal[ pointIndex ];
+        std::vector<std::vector<float>> accumulator(refNum, item);
+        auto                            rt = transformRT(p1, n1);
+        for (std::size_t j = 1; j < indices.size(); j++) {
+            auto  pointIndex = indices[ j ].first;
+            auto &p2         = sampledScene.point[ pointIndex ];
+            auto &n2         = sampledScene.normal[ pointIndex ];
 
             auto f    = computePPF(p1, p2, n1, n2);
             auto hash = hashPPF(f, angleStep, distanceStep);
             if (hashTable.find(hash) == hashTable.end())
                 continue;
 
-            Eigen::Vector3f p2t        = R * p2 + t;
-            float           alphaScene = atan2(-p2t(2), p2t(1));
+            Eigen::Vector4f p2t(p2.x(), p2.y(), p2.z(), 1);
+            p2t              = rt * p2t;
+            float alphaScene = atan2(-p2t(2), p2t(1));
             if (sin(alphaScene) * p2t(2) > 0)
                 alphaScene = -alphaScene;
 
             auto &nodeList = hashTable[ hash ];
             for (auto &feature : nodeList) {
-                auto  alphaModel = feature.alphaAngle;
+                auto &alphaModel = feature.alphaAngle;
                 float alphaAngle = alphaModel - alphaScene;
                 if (alphaAngle > (float)M_PI)
-                    alphaAngle = alphaAngle - 2.0f * (float)M_PI;
+                    alphaAngle = alphaAngle - M_2PI;
                 else if (alphaAngle < (float)(-M_PI))
-                    alphaAngle = alphaAngle + 2.0f * (float)M_PI;
+                    alphaAngle = alphaAngle + M_2PI;
 
                 int angleIndex = round(maxAngleIndex * (alphaAngle + (float)M_PI) / M_2PI);
                 accumulator[ feature.refInd ][ angleIndex ] += feature.voteValue;
@@ -246,25 +235,19 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
             }
         }
 
-        maxVal = maxVal * 0.95f;
+        auto iT = rt.inverse();
+        maxVal  = maxVal * 0.95f;
         for (int i = 0; i < accumulator.size(); i++) {
             for (int j = 0; j < angleNum; j++) {
                 auto &vote = accumulator[ i ][ j ];
                 if (vote <= maxVal)
                     continue;
 
-                auto            pMax = modelSampled.point[ i ];
-                auto            nMax = modelSampled.normal[ i ];
-                Eigen::Matrix3f RMax;
-                Eigen::Vector3f tMax;
-                transformRT(pMax, nMax, RMax, tMax);
-                Eigen::Affine3f TMax;
-                TMax.linear()      = RMax;
-                TMax.translation() = tMax;
+                auto &pMax = modelSampled.point[ i ];
+                auto &nMax = modelSampled.normal[ i ];
 
                 float           alphaAngle = M_2PI * j / maxAngleIndex - M_PI;
-                Eigen::Matrix4f TAlpha     = XRotMat(alphaAngle);
-                Eigen::Matrix4f TPose      = iT * (TAlpha * TMax.matrix());
+                Eigen::Matrix4f TPose      = iT * (XRotMat(alphaAngle) * transformRT(pMax, nMax));
                 Pose            pose(vote);
                 pose.updatePose(TPose);
 

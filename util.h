@@ -61,6 +61,8 @@ uint32_t hashPPF(const Eigen::Vector4f &ppfValue, float angleRadians, float dist
 void transformRT(const Eigen::Vector3f &p, const Eigen::Vector3f &n, Eigen::Matrix3f &R,
                  Eigen::Vector3f &t);
 
+Eigen::Matrix4f transformRT(const Eigen::Vector3f &p, const Eigen::Vector3f &n);
+
 float computeAlpha(const Eigen::Vector3f &p1, const Eigen::Vector3f &p2, const Eigen::Vector3f &n1);
 
 inline Eigen::Matrix4f XRotMat(float angle) {
