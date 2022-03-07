@@ -92,11 +92,13 @@ TrainParam::TrainParam(float featDistanceStepRel_, int featAngleResolution_,
             "Invalid Input: poseRefRelSamplingDistance range mismatch in TrainParam()");
 }
 
-MatchParam::MatchParam(int numMatches_, float maxOverlapDistRel_, float maxOverlapDistAbs_,
-                       bool sparsePoseRefinement_, bool densePoseRefinement_, int poseRefNumSteps_,
+MatchParam::MatchParam(float voteThresholdFraction_, int numMatches_, float maxOverlapDistRel_,
+                       float maxOverlapDistAbs_, bool sparsePoseRefinement_,
+                       bool densePoseRefinement_, int poseRefNumSteps_,
                        float poseRefDistThresholdRel_, float poseRefDistThresholdAbs_,
                        float poseRefScoringDistRel_, float poseRefScoringDistAbs_)
-    : numMatches(numMatches_)
+    : voteThresholdFraction(voteThresholdFraction_)
+    , numMatches(numMatches_)
     , maxOverlapDistRel(maxOverlapDistRel_)
     , maxOverlapDistAbs(maxOverlapDistAbs_)
     , sparsePoseRefinement(sparsePoseRefinement_)

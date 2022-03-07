@@ -158,6 +158,7 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     std::cout << "scene sample step:" << sampleStep << std::endl;
 
     //[2.3] data from param
+    int   voteThreshold  = refNum * param.voteThresholdFraction;
     float maxOverlapDist = 0;
     if (param.maxOverlapDistRel > 0)
         maxOverlapDist = modelDiameter * param.maxOverlapDistRel;
@@ -202,7 +203,10 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         iT.translation() = it;
 
         std::vector<std::pair<std::size_t, float>> indices;
-        kdtree.index->radiusSearch(&p1[ 0 ], squaredDiameter, indices, nanoflann::SearchParams());
+        auto searched = kdtree.index->radiusSearch(&p1[ 0 ], squaredDiameter, indices,
+                                                   nanoflann::SearchParams());
+        if (searched < voteThreshold)
+            continue;
         for (std::size_t j = 1; j < indices.size(); j++) {
             auto pointIndex = indices[ j ].first;
 
@@ -297,6 +301,9 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     for (auto &p : cluster2) {
         auto pose  = p.pose.matrix();
         auto score = p.numVotes;
+
+        if (score < (float)voteThreshold)
+            continue;
 
         if (param.sparsePoseRefinement) {
             auto refined = sparseIcp.regist(impl_->sampledModel, sampledScene, kdtree, pose);

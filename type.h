@@ -111,6 +111,13 @@ public:
 struct MatchParam {
 public:
     /**
+     * @brief The neighbors count threshold of key point. less than this won't compute. The value is
+     * set relative to the point count of the model.
+     *
+     */
+    float voteThresholdFraction;
+
+    /**
      * @brief Sets the maximum number of matches that are returned
      *
      */
@@ -180,11 +187,12 @@ public:
      */
     float poseRefScoringDistAbs;
 
-    explicit MatchParam(int numMatches = 1, float maxOverlapDistRel = 0.5f,
-                        float maxOverlapDistAbs = 0, bool sparsePoseRefinement = true,
-                        bool densePoseRefinement = true, int poseRefNumSteps = 5,
-                        float poseRefDistThresholdRel = 0.1f, float poseRefDistThresholdAbs = 0,
-                        float poseRefScoringDistRel = 0.005f, float poseRefScoringDistAbs = 0);
+    explicit MatchParam(float voteThresholdFraction = 0.2f, int numMatches = 1,
+                        float maxOverlapDistRel = 0.5f, float maxOverlapDistAbs = 0,
+                        bool sparsePoseRefinement = true, bool densePoseRefinement = true,
+                        int poseRefNumSteps = 5, float poseRefDistThresholdRel = 0.1f,
+                        float poseRefDistThresholdAbs = 0, float poseRefScoringDistRel = 0.005f,
+                        float poseRefScoringDistAbs = 0);
 };
 
 using KDTree = KDTreeVectorOfVectorsAdaptor<std::vector<Eigen::Vector3f>, float>;
