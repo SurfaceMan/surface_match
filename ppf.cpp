@@ -90,7 +90,7 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
     // float lambda = 0.98f;
     auto size = sampledModel.point.size();
 #pragma omp parallel for
-    for (std::size_t i = 0; i < size; i++) {
+    for (int i = 0; i < size; i++) {
         auto &p1 = sampledModel.point[ i ];
         auto &n1 = sampledModel.normal[ i ];
         for (int j = 0; j < size; j++) {
