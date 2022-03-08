@@ -158,7 +158,7 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     std::cout << "scene sample step:" << sampleStep << std::endl;
 
     //[2.3] data from param
-    int   voteThreshold  = refNum * param.voteThresholdFraction;
+    float voteThreshold  = refNum * param.voteThresholdFraction;
     float maxOverlapDist = 0;
     if (param.maxOverlapDistRel > 0)
         maxOverlapDist = modelDiameter * param.maxOverlapDistRel;
@@ -177,15 +177,18 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     if (param.poseRefScoringDistAbs > 0)
         poseRefScoringDist = param.poseRefScoringDistAbs;
 
-    auto               size = sampledScene.point.size();
+    KDTree kdtree(3, sampledScene.point);
+    float  keySampleStep = (1.f / keyPointFraction) * sampleStep;
+    auto   keypoint      = samplePointCloud2(sampledScene, keySampleStep, &kdtree);
+    std::cout << "keypoint size:" << keypoint.point.size() << std::endl;
+
     std::vector<Pose>  poseList;
-    KDTree             kdtree(3, sampledScene.point);
     std::vector<float> item(angleNum, 0);
 
 #pragma omp parallel for
-    for (int count = 0; count < size; count += sceneStep) {
-        auto &p1 = sampledScene.point[ count ];
-        auto &n1 = sampledScene.normal[ count ];
+    for (int count = 0; count < keypoint.point.size(); count++) {
+        auto &p1 = keypoint.point[ count ];
+        auto &n1 = keypoint.normal[ count ];
 
         //[3] vote
         std::vector<std::pair<std::size_t, float>> indices;
@@ -234,7 +237,7 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
                     maxVal = item2;
             }
         }
-        if (maxVal < voteThreshold)
+        if (maxVal < voteThreshold / 2.0)
             continue;
 
         auto iT = rt.inverse();
@@ -287,7 +290,7 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         auto pose  = p.pose.matrix();
         auto score = p.numVotes;
 
-        if (score < (float)voteThreshold)
+        if (score < voteThreshold)
             continue;
 
         if (param.sparsePoseRefinement) {
