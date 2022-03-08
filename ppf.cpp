@@ -273,9 +273,10 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
               << "sampledScene:" << sampledScene.point.size() << std::endl;
 
     //[6] icp
-    ICP sparseIcp(ConvergenceCriteria(5, sampleStep, sampleStep * 0.5, sampleStep * 0.6));
-    ICP denseIcp(ConvergenceCriteria(param.poseRefNumSteps, poseRefScoringDist, reSampleStep * 0.5,
-                                     reSampleStep));
+    ICP sparseIcp(ConvergenceCriteria(5, poseRefDistThreshold, sampleStep, sampleStep * 0.5,
+                                      sampleStep * 0.6));
+    ICP denseIcp(ConvergenceCriteria(param.poseRefNumSteps, poseRefDistThreshold,
+                                     poseRefScoringDist, reSampleStep * 0.5, reSampleStep));
 
     PointCloud              reSampledScene;
     std::unique_ptr<KDTree> reSampledKdtree;

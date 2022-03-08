@@ -19,21 +19,21 @@ public:
     /**
      * @brief Convergence Criteria
      *
-     * @param iterations_ max iterations for optimization
-     * @param inlinerDist_ inliner threshold distance
-     * @param mseMin_ min mean-squared-error
-     * @param mseMax_ max mean-squared-error indicate whether be converged
-     * @param tolerance_ min converge rate
-     * @param rejectionScale_ rejection for corresponding set
+     * @param iterations max iterations for optimization
+     * @param rejectDist rejection for corresponding set
+     * @param inlinerDist inliner threshold distance
+     * @param mseMin min mean-squared-error
+     * @param mseMax max mean-squared-error indicate whether be converged
+     * @param tolerance min converge rate
      */
-    ConvergenceCriteria(int iterations_, float inlinerDist_, float mseMin_, float mseMax_,
-                        float tolerance_ = 0.05f, float rejectionScale_ = 2.5f);
+    ConvergenceCriteria(int iterations, float rejectDist, float inlinerDist, float mseMin,
+                        float mseMax, float tolerance = 0.05f);
     int   iterations;
+    float rejectDist;
     float inlinerDist;
     float mseMin;
     float mseMax;
     float tolerance;
-    float rejectionScale;
 };
 
 enum class ConvergenceType {

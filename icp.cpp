@@ -4,14 +4,14 @@
 #include <util.h>
 
 namespace ppf {
-ConvergenceCriteria::ConvergenceCriteria(int iterations_, float inlinerDist_, float mseMin_,
-                                         float mseMax_, float tolerance_, float rejectionScale_)
+ConvergenceCriteria::ConvergenceCriteria(int iterations_, float rejectDist_, float inlinerDist_,
+                                         float mseMin_, float mseMax_, float tolerance_)
     : iterations(iterations_)
+    , rejectDist(rejectDist_)
     , inlinerDist(inlinerDist_)
     , mseMin(mseMin_)
     , mseMax(mseMax_)
-    , tolerance(tolerance_)
-    , rejectionScale(rejectionScale_) {
+    , tolerance(tolerance_) {
 }
 
 ConvergenceResult::ConvergenceResult()
@@ -93,7 +93,7 @@ float getRejectThreshold(const std::vector<float> &distances, float rejectScale)
 }
 
 std::vector<std::pair<int, int>> findCorresponds(const PointCloud &srcPC, const PointCloud &dstPC,
-                                                 const KDTree &kdtree, float rejectionScale) {
+                                                 const KDTree &kdtree, float rejectDist) {
     std::vector<int>   indicies;
     std::vector<float> distances;
 
@@ -101,21 +101,13 @@ std::vector<std::pair<int, int>> findCorresponds(const PointCloud &srcPC, const 
 
     std::map<int, std::vector<int>> map;
     // limit distance
-    if (rejectionScale > 0) {
-        auto threshold = getRejectThreshold(distances, rejectionScale);
-        for (size_t i = 0; i < distances.size(); i++) {
-            auto &distance = distances[ i ];
-            if (distance > threshold)
-                continue;
+    for (size_t i = 0; i < distances.size(); i++) {
+        auto &distance = distances[ i ];
+        if (distance > rejectDist)
+            continue;
 
-            auto index = indicies[ i ];
-            map[ index ].push_back(i);
-        }
-    } else {
-        for (int i = 0; i < indicies.size(); i++) {
-            auto index = indicies[ i ];
-            map[ index ].push_back(i);
-        }
+        auto index = indicies[ i ];
+        map[ index ].push_back(i);
     }
 
     // find the closest model-scene point pair
@@ -139,8 +131,8 @@ struct IterResult {
 };
 
 IterResult iteration(const PointCloud &srcPC, const PointCloud &dstPC, const KDTree &kdtree,
-                     float rejectionScale) {
-    auto modelScenePair = findCorresponds(srcPC, dstPC, kdtree, rejectionScale);
+                     float rejectDist) {
+    auto modelScenePair = findCorresponds(srcPC, dstPC, kdtree, rejectDist);
     if (modelScenePair.size() < 6)
         return IterResult{modelScenePair.size()};
 
@@ -213,7 +205,7 @@ std::vector<ConvergenceResult> ICP::regist(const PointCloud &src, const PointClo
 
     if (criteria_.iterations < 1 || criteria_.inlinerDist < 0 || criteria_.mseMin < 0 ||
         criteria_.mseMax < criteria_.mseMin || criteria_.tolerance > 1 || criteria_.tolerance < 0 ||
-        criteria_.rejectionScale < 0)
+        criteria_.rejectDist < 0)
         throw std::runtime_error("Invalid ConvergenceCriteria at ICP::regist");
 
     std::vector<ConvergenceResult> results(initPoses.size());
@@ -226,7 +218,7 @@ std::vector<ConvergenceResult> ICP::regist(const PointCloud &src, const PointClo
         auto srcTmp = initPose.isIdentity() ? src : transformPointCloud(src, initPose);
 
         while (result.iterations < criteria_.iterations) {
-            auto tmpResult = iteration(srcTmp, dst, kdtree, criteria_.rejectionScale);
+            auto tmpResult = iteration(srcTmp, dst, kdtree, criteria_.rejectDist);
 
             bool converged = (tmpResult.validPairs > 6) && (tmpResult.mse < criteria_.mseMax);
             if (converged)
