@@ -8,6 +8,9 @@
 
 #include <iostream>
 
+#define _USE_MATH_DEFINES
+#include <math.h>
+
 namespace ppf {
 
 PointCloud samplePointCloud(const ppf::PointCloud &pc, float sampleStep, BoxGrid *boxGrid) {
@@ -510,4 +513,76 @@ void findClosestPoint(const KDTree &kdtree, const PointCloud &srcPC, std::vector
     indices   = std::move(indicesTmp);
     distances = std::move(distancesTmp);
 }
+
+void getCoordinateSystemOnPlane(const Eigen::Vector3f &query, Eigen::Vector4f &u,
+                                Eigen::Vector4f &v) {
+    const Eigen::Vector4f vector = Eigen::Vector4f(query.x(), query.y(), query.z(), 0);
+    v                            = vector.unitOrthogonal();
+    u                            = vector.cross3(v);
+}
+
+bool isBoundary(const PointCloud &srcPC, const Eigen::Vector3f &point,
+                const Eigen::Vector3f                            &normal,
+                const std::vector<std::pair<std::size_t, float>> &indices, float angleThreshold) {
+    Eigen::Vector4f u = Eigen::Vector4f::Zero();
+    Eigen::Vector4f v = Eigen::Vector4f::Zero();
+    getCoordinateSystemOnPlane(normal, u, v);
+    std::vector<float> angles;
+
+    for (auto &idx : indices) {
+        auto &p     = srcPC.point[ idx.first ];
+        auto  delta = p - point;
+        if (delta == Eigen::Vector3f::Zero())
+            continue;
+
+        const Eigen::Vector4f vec = Eigen::Vector4f(delta.x(), delta.y(), delta.z(), 0);
+        angles.push_back(atan2(v.dot(vec), u.dot(vec)));
+    }
+
+    if (angles.empty())
+        return false;
+    std::sort(angles.begin(), angles.end());
+    // Compute the maximal angle difference between two consecutive angles
+    float dif;
+    float max_dif = 0;
+    for (size_t i = 0; i < angles.size() - 1; ++i) {
+        dif = abs(angles[ i + 1 ] - angles[ i ]);
+        if (max_dif < dif) {
+            max_dif = dif;
+        }
+    }
+
+    // Get the angle difference between the last and the first
+    dif = abs(2 * M_PI - angles[ angles.size() - 1 ] + angles[ 0 ]);
+    if (max_dif < dif)
+        max_dif = dif;
+
+    return max_dif > angleThreshold;
+}
+
+std::vector<std::size_t> findEdge(const KDTree &kdtree, const PointCloud &srcPC, float radius,
+                                  float angleThreshold) {
+    float                    radius2 = radius * radius;
+    std::vector<std::size_t> results;
+
+#pragma omp parallel for
+    for (int i = 0; i < srcPC.point.size(); i++) {
+        auto &p = srcPC.point[ i ];
+        auto &n = srcPC.normal[ i ];
+
+        std::vector<std::pair<std::size_t, float>> indices;
+        auto                                       searched =
+            kdtree.index->radiusSearch(&p[ 0 ], radius2, indices, nanoflann::SearchParams());
+        if (searched < 3)
+            continue;
+
+        if (isBoundary(srcPC, p, n, indices, angleThreshold)) {
+#pragma omp critical
+            { results.push_back(i); }
+        }
+    }
+
+    return results;
+}
+
 } // namespace ppf

@@ -96,4 +96,7 @@ void saveText(const std::string &filename, const PointCloud &pc);
 void findClosestPoint(const KDTree &kdtree, const PointCloud &srcPC, std::vector<int> &indices,
                       std::vector<float> &distances);
 
+std::vector<std::size_t> findEdge(const KDTree &kdtree, const PointCloud &srcPC, float radius,
+                                  float angleThreshold);
+
 } // namespace ppf

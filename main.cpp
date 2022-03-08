@@ -3,7 +3,7 @@
 #include <ppf.h>
 #include <util.h>
 
-int main(int argc, char *argv[]) {
+int main1(int argc, char *argv[]) {
     auto model = ppf::loadText(argv[ 1 ]);
     auto scene = ppf::loadText(argv[ 2 ]);
 
@@ -17,7 +17,8 @@ int main(int argc, char *argv[]) {
     std::vector<float>           score;
     {
         ppf::Timer t("match scene");
-        detector.matchScene(scene, pose, score, 0.04f, 0.2f, 0.5f, ppf::MatchParam{5});
+        detector.matchScene(scene, pose, score, 0.04f, 0.2f, 0.6f,
+                            ppf::MatchParam{0.2, 5, 0.5, 0, true, true, 5, 0.1, 0, 0.01});
     }
 
     for (int i = 0; i < pose.size(); i++) {
@@ -61,4 +62,19 @@ int main2(int argc, char *argv[]) {
     }
 
     return 0;
+}
+
+int main(int argc, char *argv[]) {
+    auto model = ppf::loadText(argv[ 1 ]);
+
+    ppf::KDTree kdtree(3, model.point);
+    auto        indices = ppf::findEdge(kdtree, model, 0.005f, 3.1415926f / 2.f);
+
+    ppf::PointCloud edges;
+    for (auto &i : indices) {
+        edges.point.push_back(model.point[ i ]);
+        edges.normal.push_back(model.normal[ i ]);
+    }
+
+    ppf::saveText("edges.txt", edges);
 }
