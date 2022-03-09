@@ -149,7 +149,6 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
 
     //[2.2] data from keyPointFraction/samplingDistanceRel
     KDTree sceneKdtree(3, scene.point);
-    int    sceneStep    = floor(1 / keyPointFraction);
     float  sampleStep   = modelDiameter * samplingDistanceRel;
     auto   sampledScene = samplePointCloud2(scene, sampleStep, &sceneKdtree);
     if (sampledScene.normal.empty())
@@ -178,7 +177,7 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         poseRefScoringDist = param.poseRefScoringDistAbs;
 
     KDTree kdtree(3, sampledScene.point);
-    float  keySampleStep = (1.f / keyPointFraction) * sampleStep;
+    float  keySampleStep = sqrtf(1.f / keyPointFraction) * sampleStep;
     auto   keypoint      = samplePointCloud2(sampledScene, keySampleStep, &kdtree);
     std::cout << "keypoint size:" << keypoint.point.size() << std::endl;
 
