@@ -193,7 +193,7 @@ ConvergenceResult ICP::regist(const PointCloud &src, const PointCloud &dst, cons
 std::vector<ConvergenceResult> ICP::regist(const PointCloud &src, const PointCloud &dst,
                                            const std::vector<Eigen::Matrix4f> &initPoses) const {
     // initialize
-    KDTree kdtree(3, dst.point, 10);
+    KDTree kdtree(dst.point, 10);
     return regist(src, dst, kdtree, initPoses);
 }
 

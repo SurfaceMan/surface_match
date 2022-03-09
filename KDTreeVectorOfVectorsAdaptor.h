@@ -49,7 +49,7 @@
  *  \tparam IndexType The type for indices in the KD-tree index
  *         (typically, size_t of int)
  */
-template <class VectorOfVectorsType, typename num_t = float, int DIM = -1,
+template <class VectorOfVectorsType, typename num_t = float, int DIM = 3,
           class Distance = nanoflann::metric_L2, typename IndexType = size_t>
 struct KDTreeVectorOfVectorsAdaptor {
     using self_t   = KDTreeVectorOfVectorsAdaptor<VectorOfVectorsType, num_t, DIM, Distance>;
@@ -62,8 +62,7 @@ struct KDTreeVectorOfVectorsAdaptor {
 
     /// Constructor: takes a const ref to the vector of vectors object with the
     /// data points
-    KDTreeVectorOfVectorsAdaptor(const size_t /* dimensionality */, const VectorOfVectorsType &mat,
-                                 const int leaf_max_size = 10)
+    KDTreeVectorOfVectorsAdaptor(const VectorOfVectorsType &mat, const int leaf_max_size = 10)
         : m_data(mat) {
         assert(mat.size() != 0 && mat[ 0 ].size() != 0);
         const size_t dims = mat[ 0 ].size();

@@ -123,7 +123,7 @@ std::vector<std::size_t> samplePointCloud2(const ppf::PointCloud &pc, float samp
     KDTree *kdtree     = tree;
     bool    needDelete = false;
     if (!kdtree) {
-        kdtree     = new KDTree(3, pc.point);
+        kdtree     = new KDTree(pc.point);
         needDelete = true;
     }
 
@@ -521,12 +521,12 @@ void findClosestPoint(const KDTree &kdtree, const PointCloud &srcPC, std::vector
     const int          numResult = 1;
     std::vector<int>   indicesTmp;
     std::vector<float> distancesTmp;
-    for (auto &point : srcPC.point) {
-        std::vector<size_t>            indexes(numResult);
-        std::vector<float>             dists(numResult);
-        nanoflann::KNNResultSet<float> resultSet(1);
-        resultSet.init(&indexes[ 0 ], &dists[ 0 ]);
 
+    std::vector<size_t>            indexes(numResult);
+    std::vector<float>             dists(numResult);
+    nanoflann::KNNResultSet<float> resultSet(1);
+    for (auto &point : srcPC.point) {
+        resultSet.init(&indexes[ 0 ], &dists[ 0 ]);
         kdtree.index->findNeighbors(resultSet, &point[ 0 ], nanoflann::SearchParams());
 
         indicesTmp.push_back(indexes[ 0 ]);
