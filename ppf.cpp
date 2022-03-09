@@ -114,7 +114,8 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
 
 void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &poses,
                           std::vector<float> &scores, float samplingDistanceRel,
-                          float keyPointFraction, float minScore, MatchParam param) {
+                          float keyPointFraction, float minScore, MatchParam param,
+                          MatchResult *matchResult) {
     //[1] check input date
     if (!impl_)
         throw std::runtime_error("No trained model in matchScene");
@@ -179,7 +180,14 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     KDTree kdtree(3, sampledScene.point);
     float  keySampleStep = sqrtf(1.f / keyPointFraction) * sampleStep;
     auto   keypoint      = samplePointCloud2(sampledScene, keySampleStep, &kdtree);
-    std::cout << "keypoint size:" << keypoint.point.size() << std::endl;
+    std::cout << "sampledScene:" << sampledScene.point.size() << "\n"
+              << "sampledModel:" << impl_->sampledModel.point.size() << "\n"
+              << "keypoint size:" << keypoint.point.size() << std::endl;
+
+    if (matchResult) {
+        matchResult->keyPoint     = keypoint;
+        matchResult->sampledScene = sampledScene;
+    }
 
     std::vector<Pose>  poseList;
     std::vector<float> item(angleNum, 0);
@@ -267,9 +275,6 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     auto sorted   = sortPoses(avgPoses);
     auto center   = impl_->sampledModel.box.center();
     auto cluster2 = clusterPose2(sorted, center, maxOverlapDist);
-
-    std::cout << "sampledModel:" << impl_->sampledModel.point.size() << "\n"
-              << "sampledScene:" << sampledScene.point.size() << std::endl;
 
     //[6] icp
     ICP sparseIcp(ConvergenceCriteria(5, poseRefDistThreshold, sampleStep, sampleStep * 0.5,

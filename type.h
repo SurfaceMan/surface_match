@@ -195,6 +195,11 @@ public:
                         float poseRefScoringDistAbs = 0);
 };
 
+struct MatchResult {
+    PointCloud sampledScene;
+    PointCloud keyPoint;
+};
+
 using KDTree = KDTreeVectorOfVectorsAdaptor<std::vector<Eigen::Vector3f>, float>;
 
 } // namespace ppf

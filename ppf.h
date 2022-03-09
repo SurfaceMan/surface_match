@@ -49,7 +49,7 @@ public:
     void matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &pose,
                     std::vector<float> &score, float samplingDistanceRel = 0.04f,
                     float keyPointFraction = 0.2f, float minScore = 0.2f,
-                    MatchParam param = MatchParam());
+                    MatchParam param = MatchParam(), MatchResult *matchResult = nullptr);
 
     /**
      * @brief save trained ppf model to file
