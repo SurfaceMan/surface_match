@@ -43,7 +43,12 @@ void savePLY(const std::string &filename, const ppf::PointCloud &pc);
  */
 PointCloud samplePointCloud(const ppf::PointCloud &pc, float sampleStep, BoxGrid *grid = nullptr);
 
-PointCloud samplePointCloud2(const ppf::PointCloud &pc, float sampleStep, KDTree *kdtree = nullptr);
+std::vector<std::size_t> samplePointCloud2(const ppf::PointCloud &pc, float sampleStep,
+                                           KDTree *kdtree = nullptr);
+
+PointCloud extraIndices(const ppf::PointCloud &pc, const std::vector<std::size_t> &indices);
+
+void normalizeNormal(ppf::PointCloud &pc);
 
 BoundingBox computeBoundingBox(const ppf::PointCloud &pc);
 

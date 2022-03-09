@@ -75,14 +75,19 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
     impl_->param               = param;
 
     KDTree kdtree(3, model.point);
-    impl_->sampledModel   = samplePointCloud2(model, sampleStep, &kdtree);
-    impl_->reSampledModel = samplePointCloud2(model, reSampleStep, &kdtree);
+    impl_->sampledModel   = extraIndices(model, samplePointCloud2(model, sampleStep, &kdtree));
+    impl_->reSampledModel = extraIndices(model, samplePointCloud2(model, reSampleStep, &kdtree));
 
-    std::cout << "model sample step:" << sampleStep << std::endl;
+    std::cout << "model sample step:" << sampleStep << "\n"
+              << "model sampled point size:" << impl_->sampledModel.point.size() << "\n"
+              << "model resampled step:" << reSampleStep << "\n"
+              << "model resampled point size:" << impl_->reSampledModel.point.size() << std::endl;
 
     auto &sampledModel = impl_->sampledModel;
     if (sampledModel.normal.empty())
         sampledModel.normal = estimateNormal(sampledModel, model);
+    if (impl_->reSampledModel.normal.empty())
+        impl_->reSampledModel.normal = estimateNormal(impl_->reSampledModel, model);
 
     //[2] create hash table
     std::map<uint32_t, std::vector<Feature>> hashTable;
@@ -151,11 +156,12 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     //[2.2] data from keyPointFraction/samplingDistanceRel
     KDTree sceneKdtree(3, scene.point);
     float  sampleStep   = modelDiameter * samplingDistanceRel;
-    auto   sampledScene = samplePointCloud2(scene, sampleStep, &sceneKdtree);
+    auto   sampledScene = extraIndices(scene, samplePointCloud2(scene, sampleStep, &sceneKdtree));
     if (sampledScene.normal.empty())
         sampledScene.normal = estimateNormal(sampledScene, scene);
 
-    std::cout << "scene sample step:" << sampleStep << std::endl;
+    std::cout << "scene sample step:" << sampleStep << "\n"
+              << "scene sampled point size:" << sampledScene.point.size() << std::endl;
 
     //[2.3] data from param
     float voteThreshold  = refNum * param.voteThresholdFraction;
@@ -180,12 +186,12 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     KDTree kdtree(3, sampledScene.point);
     float  keySampleStep = sqrtf(1.f / keyPointFraction) * sampleStep;
     auto   keypoint      = samplePointCloud2(sampledScene, keySampleStep, &kdtree);
-    std::cout << "sampledScene:" << sampledScene.point.size() << "\n"
-              << "sampledModel:" << impl_->sampledModel.point.size() << "\n"
-              << "keypoint size:" << keypoint.point.size() << std::endl;
+
+    std::cout << "scene keypoint sample step:" << keySampleStep << "\n"
+              << "scene keypoint point size:" << keypoint.size() << std::endl;
 
     if (matchResult) {
-        matchResult->keyPoint     = keypoint;
+        matchResult->keyPoint     = extraIndices(sampledScene, keypoint);
         matchResult->sampledScene = sampledScene;
     }
 
@@ -193,9 +199,10 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     std::vector<float> item(angleNum, 0);
 
 #pragma omp parallel for
-    for (int count = 0; count < keypoint.point.size(); count++) {
-        auto &p1 = keypoint.point[ count ];
-        auto &n1 = keypoint.normal[ count ];
+    for (int count = 0; count < keypoint.size(); count++) {
+        auto  pointIndex = keypoint[ count ];
+        auto &p1         = sampledScene.point[ pointIndex ];
+        auto &n1         = sampledScene.normal[ pointIndex ];
 
         //[3] vote
         std::vector<std::pair<std::size_t, float>> indices;
@@ -207,9 +214,9 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         std::vector<std::vector<float>> accumulator(refNum, item);
         auto                            rt = transformRT(p1, n1);
         for (std::size_t j = 1; j < indices.size(); j++) {
-            auto  pointIndex = indices[ j ].first;
-            auto &p2         = sampledScene.point[ pointIndex ];
-            auto &n2         = sampledScene.normal[ pointIndex ];
+            pointIndex = indices[ j ].first;
+            auto &p2   = sampledScene.point[ pointIndex ];
+            auto &n2   = sampledScene.normal[ pointIndex ];
 
             auto f    = computePPF(p1, p2, n1, n2);
             auto hash = hashPPF(f, angleStep, distanceStep);
@@ -285,7 +292,7 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     PointCloud              reSampledScene;
     std::unique_ptr<KDTree> reSampledKdtree;
     if (param.densePoseRefinement) {
-        reSampledScene  = samplePointCloud2(scene, reSampleStep, &sceneKdtree);
+        reSampledScene  = extraIndices(scene, samplePointCloud2(scene, reSampleStep, &sceneKdtree));
         reSampledKdtree = std::make_unique<KDTree>(3, reSampledScene.point);
     }
 

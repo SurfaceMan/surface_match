@@ -118,19 +118,18 @@ PointCloud samplePointCloud(const ppf::PointCloud &pc, float sampleStep, BoxGrid
     return result;
 }
 
-PointCloud samplePointCloud2(const ppf::PointCloud &pc, float sampleStep, KDTree *tree) {
+std::vector<std::size_t> samplePointCloud2(const ppf::PointCloud &pc, float sampleStep,
+                                           KDTree *tree) {
     KDTree *kdtree     = tree;
     bool    needDelete = false;
-
     if (!kdtree) {
         kdtree     = new KDTree(3, pc.point);
         needDelete = true;
     }
 
-    auto                                size = pc.point.size();
-    std::vector<bool>                   keep(size, true);
-    const std::vector<Eigen::Vector3f> &points = pc.point;
-    auto                                radius = sampleStep * sampleStep;
+    auto              size = pc.point.size();
+    std::vector<bool> keep(size, true);
+    auto              radius = sampleStep * sampleStep;
 
 #pragma parallel for
     for (std::size_t i = 0; i < size; i++) {
@@ -141,19 +140,37 @@ PointCloud samplePointCloud2(const ppf::PointCloud &pc, float sampleStep, KDTree
         std::vector<std::pair<std::size_t, float>> indices;
         kdtree->index->radiusSearch(&point[ 0 ], radius, indices, nanoflann::SearchParams());
 
-        for (std::size_t j = 1; j < indices.size(); j++)
-            keep[ indices[ j ].first ] = false;
+        for (int i = 1; i < indices.size(); i++)
+            keep[ indices[ i ].first ] = false;
     }
 
-    PointCloud result;
-    bool       hasNormal = pc.hasNormal();
+    if (needDelete)
+        delete kdtree;
+
+    std::vector<std::size_t> result;
     for (std::size_t i = 0; i < size; i++) {
         if (!keep[ i ])
             continue;
 
-        result.point.emplace_back(pc.point[ i ]);
+        result.push_back(i);
+    }
+
+    return result;
+}
+
+PointCloud extraIndices(const ppf::PointCloud &pc, const std::vector<std::size_t> &indices) {
+    PointCloud result;
+    bool       hasNormal = pc.hasNormal();
+
+    result.point.resize(indices.size());
+    if (hasNormal)
+        result.normal.resize(indices.size());
+
+#pragma omp parallel for
+    for (int i = 0; i < indices.size(); i++) {
+        result.point[ i ] = pc.point[ indices[ i ] ];
         if (hasNormal)
-            result.normal.emplace_back(pc.normal[ i ].normalized());
+            result.normal[ i ] = pc.normal[ indices[ i ] ].normalized();
     }
 
     result.box = pc.box;
@@ -161,6 +178,12 @@ PointCloud samplePointCloud2(const ppf::PointCloud &pc, float sampleStep, KDTree
         result.box = computeBoundingBox(result);
 
     return result;
+}
+
+void normalizeNormal(ppf::PointCloud &pc) {
+    for (auto &n : pc.normal) {
+        n.normalize();
+    }
 }
 
 BoundingBox computeBoundingBox(const ppf::PointCloud &pc) {
