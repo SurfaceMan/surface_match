@@ -522,10 +522,10 @@ void findClosestPoint(const KDTree &kdtree, const PointCloud &srcPC, std::vector
     std::vector<int>   indicesTmp;
     std::vector<float> distancesTmp;
 
-    std::vector<size_t>            indexes(numResult);
-    std::vector<float>             dists(numResult);
-    nanoflann::KNNResultSet<float> resultSet(1);
     for (auto &point : srcPC.point) {
+        std::vector<size_t>            indexes(numResult);
+        std::vector<float>             dists(numResult);
+        nanoflann::KNNResultSet<float> resultSet(numResult);
         resultSet.init(&indexes[ 0 ], &dists[ 0 ]);
         kdtree.index->findNeighbors(resultSet, &point[ 0 ], nanoflann::SearchParams());
 
@@ -605,6 +605,52 @@ std::vector<std::size_t> findEdge(const KDTree &kdtree, const PointCloud &srcPC,
         }
     }
 
+    return results;
+}
+
+std::vector<std::size_t> findEdge(const KDTree &kdtree, const PointCloud &srcPC, int knn) {
+    std::vector<float> sigma(srcPC.point.size(), 0);
+
+#pragma omp parallel for
+    for (int i = 0; i < srcPC.point.size(); i++) {
+        auto                          &p = srcPC.point[ i ];
+        std::vector<size_t>            indexes(knn);
+        std::vector<float>             dists(knn);
+        nanoflann::KNNResultSet<float> resultSet(knn);
+        resultSet.init(&indexes[ 0 ], &dists[ 0 ]);
+        auto searched = kdtree.index->findNeighbors(resultSet, &p[ 0 ], nanoflann::SearchParams());
+        if (!searched)
+            continue;
+
+        Eigen::MatrixXf vec = Eigen::MatrixXf::Zero(knn, 3);
+        for (int i = 0; i < knn; i++)
+            vec.row(i) = srcPC.point[ indexes[ i ] ];
+
+        Eigen::MatrixXf    mean = vec.colwise().mean();
+        Eigen::RowVectorXf meanVecRow(Eigen::RowVectorXf::Map(mean.data(), 3));
+        vec.rowwise() -= meanVecRow;
+
+        Eigen::MatrixXf                                cov = (vec.adjoint() * vec) / float(knn - 1);
+        Eigen::SelfAdjointEigenSolver<Eigen::MatrixXf> eigenSolver(cov);
+        if (eigenSolver.info() != Eigen::Success)
+            continue;
+
+        Eigen::VectorXf eigenValue = eigenSolver.eigenvalues();
+        sigma[ i ] = *std::min_element(eigenValue.begin(), eigenValue.end()) / eigenValue.sum();
+    }
+
+    auto minMax = std::minmax_element(sigma.begin(), sigma.end());
+    auto min    = *(minMax.first);
+    auto max    = *(minMax.second);
+    std::cout << "min:" << min << "\n"
+              << "max:" << max << std::endl;
+
+    std::vector<std::size_t> results;
+    float                    threshold = min + (max - min) * 36.f / 256.f;
+    for (int i = 0; i < sigma.size(); i++) {
+        if (sigma[ i ] > threshold)
+            results.push_back(i);
+    }
     return results;
 }
 

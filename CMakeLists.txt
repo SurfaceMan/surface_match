@@ -24,3 +24,7 @@ target_include_directories(ppf PRIVATE
 )
 
 target_link_libraries(ppf PUBLIC OpenMP::OpenMP_CXX)
+target_compile_options(ppf 
+	PRIVATE 
+	$<$<CXX_COMPILER_ID:MSVC>:/bigobj> 
+	$<$<CXX_COMPILER_ID:GNU>:-Wa,-mbig-obj>) 

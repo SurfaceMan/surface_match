@@ -104,4 +104,6 @@ void findClosestPoint(const KDTree &kdtree, const PointCloud &srcPC, std::vector
 std::vector<std::size_t> findEdge(const KDTree &kdtree, const PointCloud &srcPC, float radius,
                                   float angleThreshold);
 
+std::vector<std::size_t> findEdge(const KDTree &kdtree, const PointCloud &srcPC, int knn);
+
 } // namespace ppf

@@ -3,7 +3,7 @@
 #include <ppf.h>
 #include <util.h>
 
-int main(int argc, char *argv[]) {
+int main1(int argc, char *argv[]) {
     auto model = ppf::loadText(argv[ 1 ]);
     auto scene = ppf::loadText(argv[ 2 ]);
 
@@ -15,10 +15,11 @@ int main(int argc, char *argv[]) {
 
     std::vector<Eigen::Matrix4f> pose;
     std::vector<float>           score;
+    ppf::MatchResult             result;
     {
         ppf::Timer t("match scene");
-        detector.matchScene(scene, pose, score, 0.04f, 0.1f, 0.6f,
-                            ppf::MatchParam{0.2, 5, 0.5, 0, true, true, 5, 0.1, 0, 0.01});
+        detector.matchScene(scene, pose, score, 0.04f, 0.1f, 0.6f, ppf::MatchParam{0.2, 5},
+                            &result);
     }
 
     for (int i = 0; i < pose.size(); i++) {
@@ -28,6 +29,9 @@ int main(int argc, char *argv[]) {
         std::cout << pose[ i ] << std::endl;
         std::cout << score[ i ] << std::endl;
     }
+
+    ppf::saveText("sampledScene.txt", result.sampledScene);
+    ppf::saveText("sampledKeypoint.txt", result.keyPoint);
 
     return 0;
 }
@@ -64,18 +68,18 @@ int main2(int argc, char *argv[]) {
     return 0;
 }
 
-int main3(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
     auto model = ppf::loadText(argv[ 1 ]);
 
     ppf::KDTree kdtree(model.point);
-    auto        indices = ppf::findEdge(kdtree, model, 0.005f, 3.1415926f / 2.f);
-
-    ppf::PointCloud edges;
-    for (auto &i : indices) {
-        edges.point.push_back(model.point[ i ]);
-        edges.normal.push_back(model.normal[ i ]);
+    // auto        indices = ppf::findEdge(kdtree, model, 0.005f, 3.1415926f / 2.f);
+    std::vector<std::size_t> indices;
+    {
+        ppf::Timer t("find edge");
+        indices = ppf::findEdge(kdtree, model, 10);
     }
 
+    ppf::PointCloud edges = ppf::extraIndices(model, indices);
     ppf::saveText("edges.txt", edges);
     return 0;
 }
