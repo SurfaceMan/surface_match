@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
 project(ppf)
 
+set(CMAKE_CXX_STANDARD 17)
+
 find_package(Eigen3)
 
 #find OpenMP 
@@ -28,3 +30,4 @@ target_compile_options(ppf
 	PRIVATE 
 	$<$<CXX_COMPILER_ID:MSVC>:/bigobj> 
 	$<$<CXX_COMPILER_ID:GNU>:-Wa,-mbig-obj>) 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx")

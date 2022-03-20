@@ -54,9 +54,11 @@ BoundingBox computeBoundingBox(const ppf::PointCloud &pc);
 
 PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f &pose);
 
-std::vector<Eigen::Vector3f> estimateNormal(const ppf::PointCloud &pc);
+std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>
+    estimateNormal(const ppf::PointCloud &pc);
 
-std::vector<Eigen::Vector3f> estimateNormal(const ppf::PointCloud &pc, const ppf::PointCloud &ref);
+std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>
+    estimateNormal(const ppf::PointCloud &pc, const ppf::PointCloud &ref);
 
 Eigen::Vector4f computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &p2,
                            const Eigen::Vector3f &n1, const Eigen::Vector3f &n2);

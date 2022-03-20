@@ -237,11 +237,13 @@ PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f 
     return result;
 }
 
-std::vector<Eigen::Vector3f> estimateNormal(const ppf::PointCloud &pc) {
+std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>
+    estimateNormal(const ppf::PointCloud &pc) {
     return {};
 }
 
-std::vector<Eigen::Vector3f> estimateNormal(const ppf::PointCloud &pc, const ppf::PointCloud &ref) {
+std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>
+    estimateNormal(const ppf::PointCloud &pc, const ppf::PointCloud &ref) {
     return {};
 }
 
