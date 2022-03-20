@@ -131,7 +131,6 @@ std::vector<std::size_t> samplePointCloud2(const ppf::PointCloud &pc, float samp
     std::vector<bool> keep(size, true);
     auto              radius = sampleStep * sampleStep;
 
-#pragma parallel for
     for (std::size_t i = 0; i < size; i++) {
         if (!keep[ i ])
             continue;
