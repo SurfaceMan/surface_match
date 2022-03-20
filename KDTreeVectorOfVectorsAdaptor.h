@@ -71,7 +71,7 @@ struct KDTreeVectorOfVectorsAdaptor {
                                      "argument");
         index = new index_t(static_cast<int>(dims), *this /* adaptor */,
                             nanoflann::KDTreeSingleIndexAdaptorParams(leaf_max_size));
-        index->buildIndex();
+        // index->buildIndex();
     }
 
     ~KDTreeVectorOfVectorsAdaptor() {
