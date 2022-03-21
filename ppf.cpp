@@ -42,7 +42,7 @@ public:
     PointCloud sampledModel;
     PointCloud reSampledModel;
 
-    std::map<uint32_t, std::vector<Feature>> hashTable;
+    std::unordered_map<uint32_t, std::vector<Feature>> hashTable;
 };
 
 Detector::Detector()
@@ -90,7 +90,7 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
         impl_->reSampledModel.normal = estimateNormal(impl_->reSampledModel, model);
 
     //[2] create hash table
-    std::map<uint32_t, std::vector<Feature>> hashTable;
+    std::unordered_map<uint32_t, std::vector<Feature>> hashTable;
 
     // float lambda = 0.98f;
     auto size = sampledModel.point.size();
