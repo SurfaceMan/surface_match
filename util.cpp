@@ -137,10 +137,12 @@ std::vector<std::size_t> samplePointCloud2(const ppf::PointCloud &pc, float samp
 
         auto                                      &point = pc.point[ i ];
         std::vector<std::pair<std::size_t, float>> indices;
-        kdtree->index->radiusSearch(&point[ 0 ], radius, indices, nanoflann::SearchParams());
+        kdtree->index->radiusSearch(&point[ 0 ], radius, indices,
+                                    nanoflann::SearchParams(32, 0, false));
 
-        for (int i = 1; i < indices.size(); i++)
-            keep[ indices[ i ].first ] = false;
+        for (auto &[ idx, dist ] : indices)
+            keep[ idx ] = false;
+        keep[ i ] = true;
     }
 
     if (needDelete)
