@@ -213,12 +213,33 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
 
         std::vector<std::vector<float>> accumulator(refNum, item);
         auto                            rt = transformRT(p1, n1);
+
+        // auto             rows = searched - 1;
+        // Eigen::MatrixX3f p2n;
+        // p2n.resize(rows, Eigen::NoChange);
+        // Eigen::MatrixX3f n2n;
+        // n2n.resize(rows, Eigen::NoChange);
+        // for (std::size_t j = 1; j < indices.size(); j++) {
+        //     pointIndex     = indices[ j ].first;
+        //     auto &p2       = sampledScene.point[ pointIndex ];
+        //     auto &n2       = sampledScene.normal[ pointIndex ];
+        //     p2n.row(j - 1) = p2.transpose();
+        //     n2n.row(j - 1) = n2.transpose();
+        // }
+        // auto             d     = p2n.rowwise() - p1.transpose();
+        // Eigen::VectorXf  dn    = d.rowwise().norm();
+        // Eigen::MatrixX3f dNorm = d.rowwise().normalized();
+        // Eigen::VectorXf  f1    = Eigen::acos((dNorm * n1).array());
+        // Eigen::VectorXf  f2    = Eigen::acos(dNorm.cwiseProduct(n2n).rowwise().sum().array());
+        // Eigen::VectorXf  f3    = Eigen::acos((n2n * n1).array());
+
         for (std::size_t j = 1; j < indices.size(); j++) {
             pointIndex = indices[ j ].first;
             auto &p2   = sampledScene.point[ pointIndex ];
             auto &n2   = sampledScene.normal[ pointIndex ];
 
-            auto f    = computePPF(p1, p2, n1, n2);
+            auto f = computePPF(p1, p2, n1, n2);
+            // Eigen::Vector4f f(f1[ j - 1 ], f2[ j - 1 ], f3[ j - 1 ], dn[ j - 1 ]);
             auto hash = hashPPF(f, angleStep, distanceStep);
             if (hashTable.find(hash) == hashTable.end())
                 continue;
