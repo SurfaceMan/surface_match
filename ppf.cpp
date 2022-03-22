@@ -98,14 +98,16 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
     for (int i = 0; i < size; i++) {
         auto &p1 = sampledModel.point[ i ];
         auto &n1 = sampledModel.normal[ i ];
+
+        auto ppf =
+            computePPF(p1, n1, sampledModel.point, sampledModel.normal, angleStep, distanceStep);
         for (int j = 0; j < size; j++) {
             if (i == j)
                 continue;
 
             auto &p2    = sampledModel.point[ j ];
             auto &n2    = sampledModel.normal[ j ];
-            auto  f     = computePPF(p1, p2, n1, n2);
-            auto  hash  = hashPPF(f, angleStep, distanceStep);
+            auto  hash  = ppf[ j ];
             auto  alpha = computeAlpha(p1, p2, n1);
             // float dp        = n1.dot(n2);
             float voteValue = 1; // 1 - lambda * std::abs(dp); //角度差异越大，投票分数越大
@@ -233,16 +235,24 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         // Eigen::VectorXf  f2    = Eigen::acos(dNorm.cwiseProduct(n2n).rowwise().sum().array());
         // Eigen::VectorXf  f3    = Eigen::acos((n2n * n1).array());
 
+        auto                         rows = searched - 1;
+        std::vector<Eigen::Vector3f> np2(rows);
+        std::vector<Eigen::Vector3f> nn2(rows);
         for (std::size_t j = 1; j < indices.size(); j++) {
+            pointIndex   = indices[ j ].first;
+            np2[ j - 1 ] = sampledScene.point[ pointIndex ];
+            nn2[ j - 1 ] = sampledScene.normal[ pointIndex ];
+        }
+        auto ppf = computePPF(p1, n1, np2, nn2, angleStep, distanceStep);
+
+        for (std::size_t j = 1; j < indices.size(); j++) {
+            auto hash = ppf[ j - 1 ];
+            if (hashTable.find(hash) == hashTable.end())
+                continue;
+
             pointIndex = indices[ j ].first;
             auto &p2   = sampledScene.point[ pointIndex ];
             auto &n2   = sampledScene.normal[ pointIndex ];
-
-            auto f = computePPF(p1, p2, n1, n2);
-            // Eigen::Vector4f f(f1[ j - 1 ], f2[ j - 1 ], f3[ j - 1 ], dn[ j - 1 ]);
-            auto hash = hashPPF(f, angleStep, distanceStep);
-            if (hashTable.find(hash) == hashTable.end())
-                continue;
 
             Eigen::Vector4f p2t(p2.x(), p2.y(), p2.z(), 1);
             p2t              = rt * p2t;

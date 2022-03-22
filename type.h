@@ -36,9 +36,9 @@ public:
 
 struct PointCloud {
 public:
-    std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>> point;
-    std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>> normal;
-    BoundingBox                                                             box;
+    std::vector<Eigen::Vector3f> point;
+    std::vector<Eigen::Vector3f> normal;
+    BoundingBox                  box;
 
     bool hasNormal() const;
 };
@@ -202,7 +202,6 @@ struct MatchResult {
     PointCloud keyPoint;
 };
 
-using KDTree = KDTreeVectorOfVectorsAdaptor<
-    std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>, float>;
+using KDTree = KDTreeVectorOfVectorsAdaptor<std::vector<Eigen::Vector3f>, float>;
 
 } // namespace ppf

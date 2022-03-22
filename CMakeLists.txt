@@ -20,14 +20,13 @@ add_executable(ppf
 target_include_directories(ppf PRIVATE 
     "D:/tools/PCL 1.12.1/3rdParty/Eigen/eigen3"
     "E:/project2/2022-2-9ppf/nanoflann/include"
+    "E:/project2/2022-2-9ppf/simd/xsimd/include"
     "/home/abc/project/3_surface_match/nanoflann/include"
     ${EIGEN3_INCLUDE_DIRS}
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
-
 target_link_libraries(ppf PUBLIC OpenMP::OpenMP_CXX)
-target_compile_options(ppf 
-	PRIVATE 
-	$<$<CXX_COMPILER_ID:MSVC>:/bigobj> 
-	$<$<CXX_COMPILER_ID:GNU>:-Wa,-mbig-obj>) 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx")
+target_compile_options(ppf PRIVATE 
+	$<$<CXX_COMPILER_ID:MSVC>:/bigobj /arch:AVX2> 
+	$<$<CXX_COMPILER_ID:GNU>:-Wa,-mbig-obj,-mavx>
+) 

@@ -2,8 +2,11 @@
 #include <icp.h>
 #include <ppf.h>
 #include <util.h>
+#include <xsimd/xsimd.hpp>
 
-int main1(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
+    std::cout << "float batch size:" << xsimd::simd_type<float>::size << std::endl;
+
     auto model = ppf::loadText(argv[ 1 ]);
     auto scene = ppf::loadText(argv[ 2 ]);
 
@@ -68,7 +71,7 @@ int main2(int argc, char *argv[]) {
     return 0;
 }
 
-int main(int argc, char *argv[]) {
+int main3(int argc, char *argv[]) {
     auto model = ppf::loadText(argv[ 1 ]);
 
     ppf::KDTree kdtree(model.point);

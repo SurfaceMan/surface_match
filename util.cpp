@@ -5,6 +5,7 @@
 #include <Eigen/Geometry>
 #include <Eigen/StdVector>
 #include <fstream>
+#include <xsimd/xsimd.hpp>
 
 #include <iostream>
 
@@ -239,13 +240,11 @@ PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f 
     return result;
 }
 
-std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>
-    estimateNormal(const ppf::PointCloud &pc) {
+std::vector<Eigen::Vector3f> estimateNormal(const ppf::PointCloud &pc) {
     return {};
 }
 
-std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>
-    estimateNormal(const ppf::PointCloud &pc, const ppf::PointCloud &ref) {
+std::vector<Eigen::Vector3f> estimateNormal(const ppf::PointCloud &pc, const ppf::PointCloud &ref) {
     return {};
 }
 
@@ -655,6 +654,136 @@ std::vector<std::size_t> findEdge(const KDTree &kdtree, const PointCloud &srcPC,
             results.push_back(i);
     }
     return results;
+}
+
+xsimd::batch<uint32_t> hashPPF(const xsimd::batch<float> &f1, const xsimd::batch<float> &f2,
+                               const xsimd::batch<float> &f3, const xsimd::batch<float> &dn,
+                               float angleStep, float distStep) {
+    auto rAngle = xsimd::broadcast<float>(angleStep);
+    auto rDist  = xsimd::broadcast<float>(distStep);
+
+    static const auto c1   = xsimd::broadcast<uint32_t>(0xcc9e2d51);
+    static const auto c2   = xsimd::broadcast<uint32_t>(0x1b873593);
+    static const auto r1   = xsimd::broadcast<uint32_t>(15);
+    static const auto r2   = xsimd::broadcast<uint32_t>(13);
+    static const auto r3   = xsimd::broadcast<uint32_t>(17);
+    static const auto r4   = xsimd::broadcast<uint32_t>(19);
+    static const auto r5   = xsimd::broadcast<uint32_t>(16);
+    static const auto m    = xsimd::broadcast<uint32_t>(5);
+    static const auto n    = xsimd::broadcast<uint32_t>(0xe6546b64);
+    static const auto p    = xsimd::broadcast<uint32_t>(0x85ebca6b);
+    static const auto q    = xsimd::broadcast<uint32_t>(0xc2b2ae35);
+    static const auto seed = xsimd::broadcast<uint32_t>(42);
+
+    auto dF1 = xsimd::batch_cast<uint32_t>(xsimd::ceil(f1 / rAngle));
+    auto dF2 = xsimd::batch_cast<uint32_t>(xsimd::ceil(f2 / rAngle));
+    auto dF3 = xsimd::batch_cast<uint32_t>(xsimd::ceil(f3 / rAngle));
+    auto dDn = xsimd::batch_cast<uint32_t>(xsimd::ceil(dn / rDist));
+
+    // murmurhash3
+    static const uint32_t len = 16;
+
+    auto k = dF1 * c1;
+    k      = (k << r1) | (k >> r3);
+    k *= c2;
+    auto hash = seed ^ k;
+    hash      = ((hash << r2) | (hash >> r4)) * m + n;
+
+    k = dF2 * c1;
+    k = (k << r1) | (k >> r3);
+    k *= c2;
+    hash ^= k;
+    hash = ((hash << r2) | (hash >> r4)) * m + n;
+
+    k = dF3 * c1;
+    k = (k << r1) | (k >> r3);
+    k *= c2;
+    hash ^= k;
+    hash = ((hash << r2) | (hash >> r4)) * m + n;
+
+    k = dDn * c1;
+    k = (k << r1) | (k >> r3);
+    k *= c2;
+    hash ^= k;
+    hash = ((hash << r2) | (hash >> r4)) * m + n;
+
+    hash ^= len;
+    hash ^= (hash >> r5);
+    hash *= p;
+    hash ^= (hash >> r2);
+    hash *= q;
+    hash ^= (hash >> r5);
+
+    return hash;
+}
+
+std::vector<uint32_t> computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &n1,
+                                 const std::vector<Eigen::Vector3f> &p2,
+                                 const std::vector<Eigen::Vector3f> &n2, float angleStep,
+                                 float distStep) {
+    using vector                    = std::vector<float, xsimd::aligned_allocator<float>>;
+    using vector2                   = std::vector<uint32_t, xsimd::aligned_allocator<uint32_t>>;
+    auto                  size      = p2.size();
+    constexpr std::size_t simd_size = xsimd::simd_type<float>::size;
+    std::size_t           vec_size  = size - size % simd_size;
+    std::vector<uint32_t> result;
+    result.reserve(size);
+
+    auto rp1x = xsimd::broadcast<float>(p1.x());
+    auto rp1y = xsimd::broadcast<float>(p1.y());
+    auto rp1z = xsimd::broadcast<float>(p1.z());
+    auto rn1x = xsimd::broadcast<float>(n1.x());
+    auto rn1y = xsimd::broadcast<float>(n1.y());
+    auto rn1z = xsimd::broadcast<float>(n1.z());
+
+    vector p2x(vec_size);
+    vector p2y(vec_size);
+    vector p2z(vec_size);
+    vector n2x(vec_size);
+    vector n2y(vec_size);
+    vector n2z(vec_size);
+    for (int i = 0; i < vec_size; i++) {
+        p2x[ i ] = p2[ i ].x();
+        p2y[ i ] = p2[ i ].y();
+        p2z[ i ] = p2[ i ].z();
+        n2x[ i ] = n2[ i ].x();
+        n2y[ i ] = n2[ i ].y();
+        n2z[ i ] = n2[ i ].z();
+    }
+
+    vector2 vhash(vec_size);
+    for (int i = 0; i < vec_size; i += simd_size) {
+        auto rp2x = xsimd::load(&p2x[ i ]);
+        auto rp2y = xsimd::load(&p2y[ i ]);
+        auto rp2z = xsimd::load(&p2z[ i ]);
+        auto rn2x = xsimd::load(&n2x[ i ]);
+        auto rn2y = xsimd::load(&n2y[ i ]);
+        auto rn2z = xsimd::load(&n2z[ i ]);
+
+        auto dx = rp2x - rp1x;
+        auto dy = rp2y - rp1y;
+        auto dz = rp2z - rp1z;
+
+        auto norm = xsimd::sqrt(dx * dx + dy * dy + dz * dz);
+        auto nx   = dx / norm;
+        auto ny   = dy / norm;
+        auto nz   = dz / norm;
+
+        auto f1 = xsimd::acos(rn1x * nx + rn1y * ny + rn1z * nz);
+        auto f2 = xsimd::acos(rn2x * nx + rn2y * ny + rn2z * nz);
+        auto f3 = xsimd::acos(rn2x * rn1x + rn2y * rn1y + rn2z * rn1z);
+
+        auto hash = hashPPF(f1, f2, f3, norm, angleStep, distStep);
+        xsimd::store(&vhash[ i ], hash);
+    }
+
+    for (int i = 0; i < vec_size; i++)
+        result.emplace_back(vhash[ i ]);
+
+    for (int i = vec_size; i < size; i++)
+        result.push_back(hashPPF(computePPF(p1, p2[ i ], n1, n2[ i ]), angleStep, distStep));
+
+    return result;
 }
 
 } // namespace ppf
