@@ -100,14 +100,13 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
 
         auto ppf =
             computePPF(p1, n1, sampledModel.point, sampledModel.normal, angleStep, distanceStep);
+        auto rt = transformRT(p1, n1);
         for (int j = 0; j < size; j++) {
             if (i == j)
                 continue;
 
-            auto &p2        = sampledModel.point[ j ];
-            auto &n2        = sampledModel.normal[ j ];
             auto  hash      = ppf[ j ];
-            auto  alpha     = computeAlpha(p1, p2, n1);
+            auto  alpha     = computeAlpha(rt, sampledModel.point[ j ]);
             float voteValue = 1;
 #pragma omp critical
             { hashTable[ hash ].emplace_back(i, alpha, voteValue); }
@@ -228,13 +227,8 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
             if (hashTable.find(hash) == hashTable.end())
                 continue;
 
-            pointIndex = indices[ j ].first;
-            auto &p2   = sampledScene.point[ pointIndex ];
-
-            Eigen::Vector3f p2t        = rt.topLeftCorner(3, 3) * p2 + rt.topRightCorner(3, 1);
-            float           alphaScene = atan2(-p2t(2), p2t(1));
-            if (sin(alphaScene) * p2t(2) > 0)
-                alphaScene = -alphaScene;
+            pointIndex       = indices[ j ].first;
+            float alphaScene = computeAlpha(rt, sampledScene.point[ pointIndex ]);
 
             auto &nodeList = hashTable[ hash ];
             for (auto &feature : nodeList) {

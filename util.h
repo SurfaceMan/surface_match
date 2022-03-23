@@ -32,7 +32,7 @@ std::vector<Eigen::Vector3f> estimateNormal(const ppf::PointCloud &pc, const ppf
 
 Eigen::Matrix4f transformRT(const Eigen::Vector3f &p, const Eigen::Vector3f &n);
 
-float computeAlpha(const Eigen::Vector3f &p1, const Eigen::Vector3f &p2, const Eigen::Vector3f &n1);
+float computeAlpha(Eigen::Matrix4f &rt, const Eigen::Vector3f &p2);
 
 inline Eigen::Matrix4f XRotMat(float angle) {
     Eigen::Matrix4f T;

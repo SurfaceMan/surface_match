@@ -161,9 +161,7 @@ Eigen::Matrix4f transformRT(const Eigen::Vector3f &p, const Eigen::Vector3f &n) 
     return transform;
 }
 
-float computeAlpha(const Eigen::Vector3f &p1, const Eigen::Vector3f &p2,
-                   const Eigen::Vector3f &n1) {
-    auto            rt    = transformRT(p1, n1);
+float computeAlpha(Eigen::Matrix4f &rt, const Eigen::Vector3f &p2) {
     Eigen::Vector3f mpt   = rt.topLeftCorner(3, 3) * p2 + rt.topRightCorner(3, 1);
     float           alpha = atan2(-mpt(2), mpt(1));
     if (sin(alpha) * mpt(2) > 0) {
