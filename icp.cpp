@@ -72,36 +72,55 @@ Eigen::Matrix4f minimizePointToPlaneMetric(const PointCloud &srcPC, const PointC
     return result;
 }
 
-std::vector<std::pair<int, int>> findCorresponds(const PointCloud &srcPC, const PointCloud &dstPC,
-                                                 const KDTree &kdtree, float rejectDist) {
+std::pair<PointCloud, PointCloud> findCorresponds(const PointCloud &srcPC, const PointCloud &dstPC,
+                                                  const KDTree &kdtree, float rejectDist) {
     std::vector<int>   indicies;
     std::vector<float> distances;
-
     findClosestPoint(kdtree, srcPC, indicies, distances);
 
-    std::map<int, std::vector<int>> map;
     // limit distance
-    for (size_t i = 0; i < distances.size(); i++) {
+    std::vector<std::pair<int, std::vector<int>>> map;
+    for (int i = 0; i < distances.size(); i++) {
         auto &distance = distances[ i ];
         if (distance > rejectDist)
             continue;
 
         auto index = indicies[ i ];
-        map[ index ].push_back(i);
+        bool found = false;
+        for (auto &node : map) {
+            if (node.first != index)
+                continue;
+            node.second.push_back(i);
+            found = true;
+            break;
+        }
+
+        if (found)
+            continue;
+        map.push_back({index, {i}});
     }
 
     // find the closest model-scene point pair
-    std::vector<std::pair<int, int>> modelScenePair; //[model_index, scene_index];
-    for (auto &node : map) {
-        int sceneIndex = node.first;
-        int modelIndex =
-            *std::min_element(node.second.begin(), node.second.end(),
-                              [ & ](int &a, int &b) { return distances[ a ] < distances[ b ]; });
+    auto       size = map.size();
+    PointCloud src;
+    src.point.resize(size);
+    src.normal.resize(size);
+    PointCloud dst;
+    dst.point.resize(size);
+    dst.normal.resize(size);
+    //#pragma omp parallel for
+    for (int i = 0; i < size; i++) {
+        auto &node       = map[ i ];
+        int   sceneIndex = node.first;
+        int   modelIndex = *std::min_element(node.second.begin(), node.second.end());
 
-        modelScenePair.emplace_back(modelIndex, sceneIndex);
+        src.point[ i ]  = srcPC.point[ modelIndex ];
+        src.normal[ i ] = srcPC.normal[ modelIndex ];
+        dst.point[ i ]  = dstPC.point[ sceneIndex ];
+        dst.normal[ i ] = dstPC.normal[ sceneIndex ];
     }
 
-    return modelScenePair;
+    return {std::move(src), std::move(dst)};
 }
 
 struct IterResult {
@@ -113,27 +132,14 @@ struct IterResult {
 IterResult iteration(const PointCloud &srcPC, const PointCloud &dstPC, const KDTree &kdtree,
                      float rejectDist) {
     auto modelScenePair = findCorresponds(srcPC, dstPC, kdtree, rejectDist);
-    auto size           = modelScenePair.size();
+    auto size           = modelScenePair.first.size();
     if (size < 6)
         return IterResult{size};
 
-    PointCloud src;
-    src.point.resize(size);
-    src.normal.resize(size);
-    PointCloud dst;
-    dst.point.resize(size);
-    dst.normal.resize(size);
-#pragma omp parallel for
-    for (int i = 0; i < size; i++) {
-        auto &item      = modelScenePair[ i ];
-        src.point[ i ]  = srcPC.point[ item.first ];
-        src.normal[ i ] = srcPC.normal[ item.first ];
-        dst.point[ i ]  = dstPC.point[ item.second ];
-        dst.normal[ i ] = dstPC.normal[ item.second ];
-    }
-
-    auto p   = minimizePointToPlaneMetric(src, dst);
-    auto pct = transformPointCloud(src, p);
+    auto &src = modelScenePair.first;
+    auto &dst = modelScenePair.second;
+    auto  p   = minimizePointToPlaneMetric(src, dst);
+    auto  pct = transformPointCloud(src, p);
 
     std::vector<int>   indices2;
     std::vector<float> distances2;
@@ -144,7 +150,7 @@ IterResult iteration(const PointCloud &srcPC, const PointCloud &dstPC, const KDT
         mse += sqrtf(dist);
     mse /= (float)distances2.size();
 
-    return IterResult{modelScenePair.size(), p, mse};
+    return IterResult{modelScenePair.first.size(), p, mse};
 }
 
 int inliner(const PointCloud &srcPC, const KDTree &kdtree, float inlineDist) {
