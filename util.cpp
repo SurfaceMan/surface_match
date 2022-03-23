@@ -76,7 +76,8 @@ PointCloud extraIndices(const ppf::PointCloud &pc, const std::vector<std::size_t
     return result;
 }
 
-void normalizeNormal(ppf::PointCloud &pc) {
+void        normalizeNormal(ppf::PointCloud &pc) {
+#pragma omp parallel for
     for (auto &n : pc.normal) {
         n.normalize();
     }
@@ -106,28 +107,22 @@ BoundingBox computeBoundingBox(const ppf::PointCloud &pc) {
 }
 
 PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f &pose) {
-    auto size      = pc.point.size();
-    auto hasNormal = !pc.normal.empty();
+    auto size      = pc.size();
+    auto hasNormal = pc.hasNormal();
 
     PointCloud result;
-    result.point.reserve(size);
+    result.point.resize(size);
     if (hasNormal)
-        result.normal.reserve(size);
+        result.normal.resize(size);
 
-    Eigen::Matrix3f rMat;
-    rMat << pose(0, 0), pose(0, 1), pose(0, 2), pose(1, 0), pose(1, 1), pose(1, 2), pose(2, 0),
-        pose(2, 1), pose(2, 2);
+    auto r = pose.topLeftCorner(3, 3);
+    auto t = pose.topRightCorner(3, 1);
 
-    for (auto &point : pc.point) {
-        Eigen::Vector4f p(point.x(), point.y(), point.z(), 1);
-        p = pose * p;
-
-        result.point.emplace_back(p[ 0 ], p[ 1 ], p[ 2 ]);
-    }
-    if (hasNormal) {
-        for (auto &n : pc.normal) {
-            result.normal.push_back((rMat * n).normalized());
-        }
+#pragma omp parallel for
+    for (int i = 0; i < size; i++) {
+        result.point[ i ] = r * pc.point[ i ] + t;
+        if (hasNormal)
+            result.normal[ i ] = r * pc.normal[ i ];
     }
 
     result.box = computeBoundingBox(result);
@@ -319,19 +314,22 @@ void saveText(const std::string &filename, const PointCloud &pc) {
 void findClosestPoint(const KDTree &kdtree, const PointCloud &srcPC, std::vector<int> &indices,
                       std::vector<float> &distances) {
 
+    auto               size      = srcPC.size();
     const int          numResult = 1;
-    std::vector<int>   indicesTmp;
-    std::vector<float> distancesTmp;
+    std::vector<int>   indicesTmp(size);
+    std::vector<float> distancesTmp(size);
 
-    for (auto &point : srcPC.point) {
+#pragma omp parallel for
+    for (int i = 0; i < size; i++) {
+        auto                          &point = srcPC.point[ i ];
         std::vector<size_t>            indexes(numResult);
         std::vector<float>             dists(numResult);
         nanoflann::KNNResultSet<float> resultSet(numResult);
         resultSet.init(&indexes[ 0 ], &dists[ 0 ]);
         kdtree.index->findNeighbors(resultSet, &point[ 0 ], nanoflann::SearchParams());
 
-        indicesTmp.push_back(indexes[ 0 ]);
-        distancesTmp.push_back(dists[ 0 ]);
+        indicesTmp[ i ]   = indexes[ 0 ];
+        distancesTmp[ i ] = dists[ 0 ];
     }
 
     indices   = std::move(indicesTmp);
