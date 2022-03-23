@@ -213,28 +213,6 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         if (searched < voteThreshold)
             continue;
 
-        std::vector<std::vector<float>> accumulator(refNum, item);
-        auto                            rt = transformRT(p1, n1);
-
-        // auto             rows = searched - 1;
-        // Eigen::MatrixX3f p2n;
-        // p2n.resize(rows, Eigen::NoChange);
-        // Eigen::MatrixX3f n2n;
-        // n2n.resize(rows, Eigen::NoChange);
-        // for (std::size_t j = 1; j < indices.size(); j++) {
-        //     pointIndex     = indices[ j ].first;
-        //     auto &p2       = sampledScene.point[ pointIndex ];
-        //     auto &n2       = sampledScene.normal[ pointIndex ];
-        //     p2n.row(j - 1) = p2.transpose();
-        //     n2n.row(j - 1) = n2.transpose();
-        // }
-        // auto             d     = p2n.rowwise() - p1.transpose();
-        // Eigen::VectorXf  dn    = d.rowwise().norm();
-        // Eigen::MatrixX3f dNorm = d.rowwise().normalized();
-        // Eigen::VectorXf  f1    = Eigen::acos((dNorm * n1).array());
-        // Eigen::VectorXf  f2    = Eigen::acos(dNorm.cwiseProduct(n2n).rowwise().sum().array());
-        // Eigen::VectorXf  f3    = Eigen::acos((n2n * n1).array());
-
         auto                         rows = searched - 1;
         std::vector<Eigen::Vector3f> np2(rows);
         std::vector<Eigen::Vector3f> nn2(rows);
@@ -245,6 +223,8 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         }
         auto ppf = computePPF(p1, n1, np2, nn2, angleStep, distanceStep);
 
+        std::vector<std::vector<float>> accumulator(refNum, item);
+        auto                            rt = transformRT(p1, n1);
         for (std::size_t j = 1; j < indices.size(); j++) {
             auto hash = ppf[ j - 1 ];
             if (hashTable.find(hash) == hashTable.end())
@@ -252,7 +232,6 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
 
             pointIndex = indices[ j ].first;
             auto &p2   = sampledScene.point[ pointIndex ];
-            auto &n2   = sampledScene.normal[ pointIndex ];
 
             Eigen::Vector4f p2t(p2.x(), p2.y(), p2.z(), 1);
             p2t              = rt * p2t;
