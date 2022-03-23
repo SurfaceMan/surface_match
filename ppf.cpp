@@ -90,15 +90,14 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
         impl_->reSampledModel.normal = estimateNormal(impl_->reSampledModel, model);
 
     //[2] create hash table
-    std::unordered_map<uint32_t, std::vector<Feature>> hashTable;
-
-    vector px(sampledModel.size());
-    vector py(sampledModel.size());
-    vector pz(sampledModel.size());
-    vector nx(sampledModel.size());
-    vector ny(sampledModel.size());
-    vector nz(sampledModel.size());
-    for (int i = 0; i < sampledModel.size(); i++) {
+    auto   size = sampledModel.size();
+    vector px(size);
+    vector py(size);
+    vector pz(size);
+    vector nx(size);
+    vector ny(size);
+    vector nz(size);
+    for (int i = 0; i < size; i++) {
         auto &p = sampledModel.point[ i ];
         auto &n = sampledModel.normal[ i ];
         px[ i ] = p.x();
@@ -109,7 +108,7 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
         nz[ i ] = n.z();
     }
 
-    auto size = sampledModel.point.size();
+    std::unordered_map<uint32_t, std::vector<Feature>> hashTable;
 #pragma omp parallel for
     for (int i = 0; i < size; i++) {
         auto &p1 = sampledModel.point[ i ];
@@ -172,8 +171,14 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     if (sampledScene.normal.empty())
         sampledScene.normal = estimateNormal(sampledScene, scene);
 
+    KDTree kdtree(sampledScene.point);
+    float  keySampleStep = sqrtf(1.f / keyPointFraction) * sampleStep;
+    auto   keypoint      = samplePointCloud(sampledScene, keySampleStep, &kdtree);
+
     std::cout << "scene sample step:" << sampleStep << "\n"
-              << "scene sampled point size:" << sampledScene.point.size() << std::endl;
+              << "scene sampled point size:" << sampledScene.point.size() << "\n"
+              << "scene keypoint sample step:" << keySampleStep << "\n"
+              << "scene keypoint point size:" << keypoint.size() << std::endl;
 
     //[2.3] data from param
     float voteThreshold  = refNum * param.voteThresholdFraction;
@@ -195,13 +200,6 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     if (param.poseRefScoringDistAbs > 0)
         poseRefScoringDist = param.poseRefScoringDistAbs;
 
-    KDTree kdtree(sampledScene.point);
-    float  keySampleStep = sqrtf(1.f / keyPointFraction) * sampleStep;
-    auto   keypoint      = samplePointCloud(sampledScene, keySampleStep, &kdtree);
-
-    std::cout << "scene keypoint sample step:" << keySampleStep << "\n"
-              << "scene keypoint point size:" << keypoint.size() << std::endl;
-
     if (matchResult) {
         matchResult->keyPoint     = extraIndices(sampledScene, keypoint);
         matchResult->sampledScene = sampledScene;
@@ -209,7 +207,6 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
 
     std::vector<Pose>  poseList;
     std::vector<float> item(angleNum, 0);
-
 #pragma omp parallel for
     for (int count = 0; count < keypoint.size(); count++) {
         auto  pointIndex = keypoint[ count ];
