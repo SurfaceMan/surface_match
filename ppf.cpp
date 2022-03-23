@@ -242,7 +242,7 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         auto ppf   = computePPF(p1, n1, px, py, pz, nx, ny, nz, angleStep, distanceStep);
         auto rt    = transformRT(p1, n1);
         auto alpha = computeAlpha(rt, px, py, pz);
-        std::vector<std::vector<float>> accumulator(refNum, item);
+        std::vector<std::pair<int, std::vector<float>>> accumulator(refNum, {0, item});
         for (std::size_t j = 1; j < indices.size(); j++) {
             float alphaScene = alpha[ j - 1 ];
             auto  hash       = ppf[ j - 1 ];
@@ -258,15 +258,19 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
                 else if (alphaAngle < (float)(-M_PI))
                     alphaAngle = alphaAngle + M_2PI;
 
-                int angleIndex = round(maxAngleIndex * (alphaAngle + (float)M_PI) / M_2PI);
-                accumulator[ feature.refInd ][ angleIndex ] += feature.voteValue;
+                int   angleIndex = round(maxAngleIndex * (alphaAngle + (float)M_PI) / M_2PI);
+                auto &iter       = accumulator[ feature.refInd ];
+                iter.first++;
+                iter.second[ angleIndex ] += feature.voteValue;
             }
         }
 
         // [4]nms
         float maxVal = 0;
         for (auto &item1 : accumulator) {
-            for (auto &item2 : item1) {
+            if (item1.first < 1)
+                continue;
+            for (auto &item2 : item1.second) {
                 if (item2 > maxVal)
                     maxVal = item2;
             }
@@ -277,8 +281,11 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         auto iT = rt.inverse();
         maxVal  = maxVal * 0.95f;
         for (int i = 0; i < accumulator.size(); i++) {
+            auto &item1 = accumulator[ i ];
+            if (item1.first < 1)
+                continue;
             for (int j = 0; j < angleNum; j++) {
-                auto &vote = accumulator[ i ][ j ];
+                auto &vote = item1.second[ j ];
                 if (vote <= maxVal)
                     continue;
 
