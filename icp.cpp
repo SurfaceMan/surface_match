@@ -44,6 +44,7 @@ Eigen::Matrix4f minimizePointToPlaneMetric(const PointCloud &srcPC, const PointC
     Eigen::MatrixXf A = Eigen::MatrixXf::Zero(size, 6);
     Eigen::MatrixXf B = Eigen::MatrixXf::Zero(size, 1);
 
+#pragma omp parallel for
     for (int i = 0; i < size; i++) {
         auto &p1 = srcPC.point[ i ];
         auto &p2 = dstPC.point[ i ];
@@ -69,27 +70,6 @@ Eigen::Matrix4f minimizePointToPlaneMetric(const PointCloud &srcPC, const PointC
     result.block<3, 1>(0, 3) = t.transpose();
 
     return result;
-}
-
-float mid(const std::vector<float> &distances) {
-    auto tmp = distances;
-    std::sort(tmp.begin(), tmp.end());
-    auto index = tmp.size() / 2;
-    return tmp[ index ];
-}
-
-float getRejectThreshold(const std::vector<float> &distances, float rejectScale) {
-    auto               midVal = mid(distances);
-    auto               size   = distances.size();
-    std::vector<float> tmp(size);
-    for (size_t i = 0; i < size; i++) {
-        tmp[ i ] = abs(distances[ i ] - midVal);
-    }
-
-    auto  s         = 1.48257968f * mid(tmp);
-    float threshold = rejectScale * s + midVal;
-
-    return threshold;
 }
 
 std::vector<std::pair<int, int>> findCorresponds(const PointCloud &srcPC, const PointCloud &dstPC,
@@ -133,16 +113,23 @@ struct IterResult {
 IterResult iteration(const PointCloud &srcPC, const PointCloud &dstPC, const KDTree &kdtree,
                      float rejectDist) {
     auto modelScenePair = findCorresponds(srcPC, dstPC, kdtree, rejectDist);
-    if (modelScenePair.size() < 6)
-        return IterResult{modelScenePair.size()};
+    auto size           = modelScenePair.size();
+    if (size < 6)
+        return IterResult{size};
 
     PointCloud src;
+    src.point.resize(size);
+    src.normal.resize(size);
     PointCloud dst;
-    for (auto &item : modelScenePair) {
-        src.point.push_back(srcPC.point[ item.first ]);
-        src.normal.push_back(srcPC.normal[ item.first ]);
-        dst.point.push_back(dstPC.point[ item.second ]);
-        dst.normal.push_back(dstPC.normal[ item.second ]);
+    dst.point.resize(size);
+    dst.normal.resize(size);
+#pragma omp parallel for
+    for (int i = 0; i < size; i++) {
+        auto &item      = modelScenePair[ i ];
+        src.point[ i ]  = srcPC.point[ item.first ];
+        src.normal[ i ] = srcPC.normal[ item.first ];
+        dst.point[ i ]  = dstPC.point[ item.second ];
+        dst.normal[ i ] = dstPC.normal[ item.second ];
     }
 
     auto p   = minimizePointToPlaneMetric(src, dst);
@@ -150,12 +137,7 @@ IterResult iteration(const PointCloud &srcPC, const PointCloud &dstPC, const KDT
 
     std::vector<int>   indices2;
     std::vector<float> distances2;
-    PointCloud         dst2;
     findClosestPoint(kdtree, pct, indices2, distances2);
-    for (auto &idx : indices2) {
-        dst2.point.push_back(dstPC.point[ idx ]);
-        dst2.normal.push_back(dstPC.normal[ idx ]);
-    }
 
     float mse = 0;
     for (auto &dist : distances2)
