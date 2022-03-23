@@ -36,6 +36,14 @@ bool PointCloud::hasNormal() const {
     return !point.empty() && (point.size() == normal.size());
 }
 
+std::size_t PointCloud::size() const {
+    return point.size();
+}
+
+bool PointCloud::empty() const {
+    return point.empty();
+}
+
 BoxGrid::BoxGrid()
     : step(0)
     , xBins(0)

@@ -40,7 +40,9 @@ public:
     std::vector<Eigen::Vector3f> normal;
     BoundingBox                  box;
 
-    bool hasNormal() const;
+    bool        hasNormal() const;
+    std::size_t size() const;
+    bool        empty() const;
 };
 
 struct BoxGrid {

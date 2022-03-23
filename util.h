@@ -12,8 +12,10 @@
 #pragma once
 
 #include "type.h"
+#include <xsimd/xsimd.hpp>
 
 namespace ppf {
+using vector = std::vector<float, xsimd::aligned_allocator<float>>;
 
 std::vector<std::size_t> samplePointCloud(const ppf::PointCloud &pc, float sampleStep,
                                           KDTree *kdtree = nullptr);
@@ -31,8 +33,6 @@ std::vector<Eigen::Vector3f> estimateNormal(const ppf::PointCloud &pc);
 std::vector<Eigen::Vector3f> estimateNormal(const ppf::PointCloud &pc, const ppf::PointCloud &ref);
 
 Eigen::Matrix4f transformRT(const Eigen::Vector3f &p, const Eigen::Vector3f &n);
-
-float computeAlpha(Eigen::Matrix4f &rt, const Eigen::Vector3f &p2);
 
 inline Eigen::Matrix4f XRotMat(float angle) {
     Eigen::Matrix4f T;
@@ -66,8 +66,11 @@ void findClosestPoint(const KDTree &kdtree, const PointCloud &srcPC, std::vector
                       std::vector<float> &distances);
 
 std::vector<uint32_t> computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &n1,
-                                 const std::vector<Eigen::Vector3f> &p2,
-                                 const std::vector<Eigen::Vector3f> &n2, float angleStep,
-                                 float distStep);
+                                 const vector &p2x, const vector &p2y, const vector &p2z,
+                                 const vector &n2x, const vector &n2y, const vector &n2z,
+                                 float angleStep, float distStep);
+
+std::vector<float> computeAlpha(Eigen::Matrix4f &rt, const vector &p2x, const vector &p2y,
+                                const vector &p2z);
 
 } // namespace ppf

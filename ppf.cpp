@@ -92,24 +92,37 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
     //[2] create hash table
     std::unordered_map<uint32_t, std::vector<Feature>> hashTable;
 
+    vector px(sampledModel.size());
+    vector py(sampledModel.size());
+    vector pz(sampledModel.size());
+    vector nx(sampledModel.size());
+    vector ny(sampledModel.size());
+    vector nz(sampledModel.size());
+    for (int i = 0; i < sampledModel.size(); i++) {
+        auto &p = sampledModel.point[ i ];
+        auto &n = sampledModel.normal[ i ];
+        px[ i ] = p.x();
+        py[ i ] = p.y();
+        pz[ i ] = p.z();
+        nx[ i ] = n.x();
+        ny[ i ] = n.y();
+        nz[ i ] = n.z();
+    }
+
     auto size = sampledModel.point.size();
 #pragma omp parallel for
     for (int i = 0; i < size; i++) {
         auto &p1 = sampledModel.point[ i ];
         auto &n1 = sampledModel.normal[ i ];
 
-        auto ppf =
-            computePPF(p1, n1, sampledModel.point, sampledModel.normal, angleStep, distanceStep);
-        auto rt = transformRT(p1, n1);
+        auto ppf   = computePPF(p1, n1, px, py, pz, nx, ny, nz, angleStep, distanceStep);
+        auto rt    = transformRT(p1, n1);
+        auto alpha = computeAlpha(rt, px, py, pz);
         for (int j = 0; j < size; j++) {
             if (i == j)
                 continue;
-
-            auto  hash      = ppf[ j ];
-            auto  alpha     = computeAlpha(rt, sampledModel.point[ j ]);
-            float voteValue = 1;
 #pragma omp critical
-            { hashTable[ hash ].emplace_back(i, alpha, voteValue); }
+            { hashTable[ ppf[ j ] ].emplace_back(i, alpha[ j ], 1); }
         }
     }
 
@@ -210,25 +223,34 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         if (searched < voteThreshold)
             continue;
 
-        auto                         rows = searched - 1;
-        std::vector<Eigen::Vector3f> np2(rows);
-        std::vector<Eigen::Vector3f> nn2(rows);
-        for (std::size_t j = 1; j < indices.size(); j++) {
-            pointIndex   = indices[ j ].first;
-            np2[ j - 1 ] = sampledScene.point[ pointIndex ];
-            nn2[ j - 1 ] = sampledScene.normal[ pointIndex ];
+        auto   rows = searched - 1;
+        vector px(rows);
+        vector py(rows);
+        vector pz(rows);
+        vector nx(rows);
+        vector ny(rows);
+        vector nz(rows);
+        for (std::size_t i = 0; i < rows; i++) {
+            pointIndex = indices[ i + 1 ].first;
+            auto &p    = sampledScene.point[ pointIndex ];
+            auto &n    = sampledScene.normal[ pointIndex ];
+            px[ i ]    = p.x();
+            py[ i ]    = p.y();
+            pz[ i ]    = p.z();
+            nx[ i ]    = n.x();
+            ny[ i ]    = n.y();
+            nz[ i ]    = n.z();
         }
-        auto ppf = computePPF(p1, n1, np2, nn2, angleStep, distanceStep);
 
+        auto ppf   = computePPF(p1, n1, px, py, pz, nx, ny, nz, angleStep, distanceStep);
+        auto rt    = transformRT(p1, n1);
+        auto alpha = computeAlpha(rt, px, py, pz);
         std::vector<std::vector<float>> accumulator(refNum, item);
-        auto                            rt = transformRT(p1, n1);
         for (std::size_t j = 1; j < indices.size(); j++) {
-            auto hash = ppf[ j - 1 ];
+            float alphaScene = alpha[ j - 1 ];
+            auto  hash       = ppf[ j - 1 ];
             if (hashTable.find(hash) == hashTable.end())
                 continue;
-
-            pointIndex       = indices[ j ].first;
-            float alphaScene = computeAlpha(rt, sampledScene.point[ pointIndex ]);
 
             auto &nodeList = hashTable[ hash ];
             for (auto &feature : nodeList) {
