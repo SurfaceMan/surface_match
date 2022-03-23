@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
     ppf::MatchResult             result;
     {
         ppf::Timer t("match scene");
-        detector.matchScene(scene, pose, score, 0.04f, 0.1f, 0.6f, ppf::MatchParam{0.2, 5},
+        detector.matchScene(scene, pose, score, 0.04f, 0.1f, 0.5f, ppf::MatchParam{0.2, 5},
                             &result);
     }
 
@@ -68,21 +68,5 @@ int main2(int argc, char *argv[]) {
         ppf::saveText("out2.txt", pct);
     }
 
-    return 0;
-}
-
-int main3(int argc, char *argv[]) {
-    auto model = ppf::loadText(argv[ 1 ]);
-
-    ppf::KDTree kdtree(model.point);
-    // auto        indices = ppf::findEdge(kdtree, model, 0.005f, 3.1415926f / 2.f);
-    std::vector<std::size_t> indices;
-    {
-        ppf::Timer t("find edge");
-        indices = ppf::findEdge(kdtree, model, 10);
-    }
-
-    ppf::PointCloud edges = ppf::extraIndices(model, indices);
-    ppf::saveText("edges.txt", edges);
     return 0;
 }

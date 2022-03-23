@@ -15,36 +15,8 @@
 
 namespace ppf {
 
-/**
- * @brief load PointCloud from ply file
- *
- * @param filename
- * @param pc
- * @return true success
- * @return false failed
- */
-bool loadPLY(const std::string &filename, ppf::PointCloud &pc);
-
-/**
- * @brief save PointCloud to ply file
- *
- * @param filename
- * @param pc
- */
-void savePLY(const std::string &filename, const ppf::PointCloud &pc);
-
-/**
- * @brief sample PointCloud with distance step(sampleStep)
- *
- * @param pc
- * @param sampleStep
- * @param grid
- * @return ppf::PointCloud
- */
-PointCloud samplePointCloud(const ppf::PointCloud &pc, float sampleStep, BoxGrid *grid = nullptr);
-
-std::vector<std::size_t> samplePointCloud2(const ppf::PointCloud &pc, float sampleStep,
-                                           KDTree *kdtree = nullptr);
+std::vector<std::size_t> samplePointCloud(const ppf::PointCloud &pc, float sampleStep,
+                                          KDTree *kdtree = nullptr);
 
 PointCloud extraIndices(const ppf::PointCloud &pc, const std::vector<std::size_t> &indices);
 
@@ -57,14 +29,6 @@ PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f 
 std::vector<Eigen::Vector3f> estimateNormal(const ppf::PointCloud &pc);
 
 std::vector<Eigen::Vector3f> estimateNormal(const ppf::PointCloud &pc, const ppf::PointCloud &ref);
-
-Eigen::Vector4f computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &p2,
-                           const Eigen::Vector3f &n1, const Eigen::Vector3f &n2);
-
-uint32_t hashPPF(const Eigen::Vector4f &ppfValue, float angleRadians, float distanceStep);
-
-void transformRT(const Eigen::Vector3f &p, const Eigen::Vector3f &n, Eigen::Matrix3f &R,
-                 Eigen::Vector3f &t);
 
 Eigen::Matrix4f transformRT(const Eigen::Vector3f &p, const Eigen::Vector3f &n);
 
@@ -100,11 +64,6 @@ void saveText(const std::string &filename, const PointCloud &pc);
 
 void findClosestPoint(const KDTree &kdtree, const PointCloud &srcPC, std::vector<int> &indices,
                       std::vector<float> &distances);
-
-std::vector<std::size_t> findEdge(const KDTree &kdtree, const PointCloud &srcPC, float radius,
-                                  float angleThreshold);
-
-std::vector<std::size_t> findEdge(const KDTree &kdtree, const PointCloud &srcPC, int knn);
 
 std::vector<uint32_t> computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &n1,
                                  const std::vector<Eigen::Vector3f> &p2,

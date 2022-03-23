@@ -75,8 +75,8 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
     impl_->param               = param;
 
     KDTree kdtree(model.point);
-    impl_->sampledModel   = extraIndices(model, samplePointCloud2(model, sampleStep, &kdtree));
-    impl_->reSampledModel = extraIndices(model, samplePointCloud2(model, reSampleStep, &kdtree));
+    impl_->sampledModel   = extraIndices(model, samplePointCloud(model, sampleStep, &kdtree));
+    impl_->reSampledModel = extraIndices(model, samplePointCloud(model, reSampleStep, &kdtree));
 
     std::cout << "model sample step:" << sampleStep << "\n"
               << "model sampled point size:" << impl_->sampledModel.point.size() << "\n"
@@ -92,7 +92,6 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
     //[2] create hash table
     std::unordered_map<uint32_t, std::vector<Feature>> hashTable;
 
-    // float lambda = 0.98f;
     auto size = sampledModel.point.size();
 #pragma omp parallel for
     for (int i = 0; i < size; i++) {
@@ -105,12 +104,11 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
             if (i == j)
                 continue;
 
-            auto &p2    = sampledModel.point[ j ];
-            auto &n2    = sampledModel.normal[ j ];
-            auto  hash  = ppf[ j ];
-            auto  alpha = computeAlpha(p1, p2, n1);
-            // float dp        = n1.dot(n2);
-            float voteValue = 1; // 1 - lambda * std::abs(dp); //角度差异越大，投票分数越大
+            auto &p2        = sampledModel.point[ j ];
+            auto &n2        = sampledModel.normal[ j ];
+            auto  hash      = ppf[ j ];
+            auto  alpha     = computeAlpha(p1, p2, n1);
+            float voteValue = 1;
 #pragma omp critical
             { hashTable[ hash ].emplace_back(i, alpha, voteValue); }
         }
@@ -158,7 +156,7 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     //[2.2] data from keyPointFraction/samplingDistanceRel
     KDTree sceneKdtree(scene.point);
     float  sampleStep   = modelDiameter * samplingDistanceRel;
-    auto   sampledScene = extraIndices(scene, samplePointCloud2(scene, sampleStep, &sceneKdtree));
+    auto   sampledScene = extraIndices(scene, samplePointCloud(scene, sampleStep, &sceneKdtree));
     if (sampledScene.normal.empty())
         sampledScene.normal = estimateNormal(sampledScene, scene);
 
@@ -187,7 +185,7 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
 
     KDTree kdtree(sampledScene.point);
     float  keySampleStep = sqrtf(1.f / keyPointFraction) * sampleStep;
-    auto   keypoint      = samplePointCloud2(sampledScene, keySampleStep, &kdtree);
+    auto   keypoint      = samplePointCloud(sampledScene, keySampleStep, &kdtree);
 
     std::cout << "scene keypoint sample step:" << keySampleStep << "\n"
               << "scene keypoint point size:" << keypoint.size() << std::endl;
@@ -233,9 +231,8 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
             pointIndex = indices[ j ].first;
             auto &p2   = sampledScene.point[ pointIndex ];
 
-            Eigen::Vector4f p2t(p2.x(), p2.y(), p2.z(), 1);
-            p2t              = rt * p2t;
-            float alphaScene = atan2(-p2t(2), p2t(1));
+            Eigen::Vector3f p2t        = rt.topLeftCorner(3, 3) * p2 + rt.topRightCorner(3, 1);
+            float           alphaScene = atan2(-p2t(2), p2t(1));
             if (sin(alphaScene) * p2t(2) > 0)
                 alphaScene = -alphaScene;
 
@@ -302,7 +299,7 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     PointCloud              reSampledScene;
     std::unique_ptr<KDTree> reSampledKdtree;
     if (param.densePoseRefinement) {
-        reSampledScene  = extraIndices(scene, samplePointCloud2(scene, reSampleStep, &sceneKdtree));
+        reSampledScene  = extraIndices(scene, samplePointCloud(scene, reSampleStep, &sceneKdtree));
         reSampledKdtree = std::make_unique<KDTree>(reSampledScene.point);
     }
 

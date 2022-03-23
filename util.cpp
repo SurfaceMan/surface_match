@@ -14,113 +14,8 @@
 
 namespace ppf {
 
-PointCloud samplePointCloud(const ppf::PointCloud &pc, float sampleStep, BoxGrid *boxGrid) {
-    BoundingBox box;
-    if (pc.box.diameter() == 0)
-        box = computeBoundingBox(pc);
-    else
-        box = pc.box;
-
-    float r2      = sampleStep * sampleStep;
-    float boxSize = sampleStep / sqrtf(3.0f);
-    auto  size    = box.size();
-    int   xBins   = ceil(size.x() / boxSize);
-    int   yBins   = ceil(size.y() / boxSize);
-    int   zBins   = ceil(size.z() / boxSize);
-
-    int maxXIndex = xBins - 1;
-    int maxYIndex = yBins - 1;
-    int maxZIndex = zBins - 1;
-
-    float xScale = (float)maxXIndex / (float)size.x();
-    float yScale = (float)maxYIndex / (float)size.y();
-    float zScale = (float)maxZIndex / (float)size.z();
-
-    // std::map<uint64_t, int> map;
-    std::vector<std::vector<std::vector<int>>> map;
-    {
-        std::vector<int>              item1(zBins, BoxGrid::INVALID);
-        std::vector<std::vector<int>> item2(yBins, item1);
-        map.resize(xBins, item2);
-    }
-    for (int count = 0; count < pc.point.size(); count++) {
-        auto &p = pc.point[ count ];
-
-        Eigen::Vector3i index;
-        index.x() = floor(xScale * (p.x() - box.min.x()));
-        index.y() = floor(yScale * (p.y() - box.min.y()));
-        index.z() = floor(zScale * (p.z() - box.min.z()));
-
-        // find neighbor
-        bool sampleModel = true;
-        int  iBegin      = std::max(0, index.x() - 2);
-        int  iEnd        = std::min(index.x() + 2, xBins);
-        int  jBegin      = std::max(0, index.y() - 2);
-        int  jEnd        = std::min(index.y() + 2, yBins);
-        int  kBegin      = std::max(0, index.z() - 2);
-        int  kEnd        = std::min(index.z() + 2, zBins);
-        for (int i = iBegin; i < iEnd; i++) {
-            for (int j = jBegin; j < jEnd; j++) {
-                for (int k = kBegin; k < kEnd; k++) {
-                    int pointIndex = map[ i ][ j ][ k ];
-                    if (pointIndex == BoxGrid::INVALID)
-                        continue;
-
-                    float dist2 = (p - pc.point[ pointIndex ]).squaredNorm();
-                    if (dist2 < r2) {
-                        sampleModel = false;
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (sampleModel)
-            map[ index.x() ][ index.y() ][ index.z() ] = count;
-    }
-
-    PointCloud                                 result;
-    std::vector<Eigen::Vector3i>               grid;
-    std::vector<std::vector<std::vector<int>>> idx;
-    {
-        std::vector<int>              item1(zBins, BoxGrid::INVALID);
-        std::vector<std::vector<int>> item2(yBins, item1);
-        idx.resize(xBins, item2);
-    }
-    bool hasNormal  = !pc.normal.empty();
-    int  pointCount = 0;
-    for (int k = 0; k < zBins; k++) {
-        for (int j = 0; j < yBins; j++) {
-            for (int i = 0; i < xBins; i++) {
-                int count = map[ i ][ j ][ k ];
-                if (count == BoxGrid::INVALID)
-                    continue;
-
-                grid.emplace_back(i, j, k);
-                idx[ i ][ j ][ k ] = pointCount++;
-
-                result.point.push_back(pc.point[ count ]);
-                if (hasNormal)
-                    result.normal.push_back(pc.normal[ count ].normalized());
-            }
-        }
-    }
-    result.box = box;
-
-    if (boxGrid) {
-        boxGrid->grid  = std::move(grid);
-        boxGrid->index = std::move(idx);
-        boxGrid->step  = boxSize;
-        boxGrid->xBins = xBins;
-        boxGrid->yBins = yBins;
-        boxGrid->zBins = zBins;
-    }
-
-    return result;
-}
-
-std::vector<std::size_t> samplePointCloud2(const ppf::PointCloud &pc, float sampleStep,
-                                           KDTree *tree) {
+std::vector<std::size_t> samplePointCloud(const ppf::PointCloud &pc, float sampleStep,
+                                          KDTree *tree) {
     KDTree *kdtree     = tree;
     bool    needDelete = false;
     if (!kdtree) {
@@ -248,96 +143,6 @@ std::vector<Eigen::Vector3f> estimateNormal(const ppf::PointCloud &pc, const ppf
     return {};
 }
 
-Eigen::Vector4f computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &p2,
-                           const Eigen::Vector3f &n1, const Eigen::Vector3f &n2) {
-
-    Eigen::Vector3f d  = p2 - p1;
-    float           dn = d.norm();
-    float           f1, f2, f3;
-    if (dn > 0) {
-        Eigen::Vector3f dNorm = d / dn;
-        f1                    = atan2((dNorm.cross(n1)).norm(), dNorm.dot(n1));
-        f2                    = atan2((dNorm.cross(n2)).norm(), dNorm.dot(n2));
-        f3                    = atan2((n1.cross(n2)).norm(), n1.dot(n2));
-    } else {
-        f1 = 0;
-        f2 = 0;
-        f3 = 0;
-    }
-
-    return {f1, f2, f3, dn};
-}
-
-uint32_t murmurhash3(const int *key, uint32_t len, uint32_t seed) {
-    static const uint32_t c1      = 0xcc9e2d51;
-    static const uint32_t c2      = 0x1b873593;
-    static const uint32_t r1      = 15;
-    static const uint32_t r2      = 13;
-    static const uint32_t m       = 5;
-    static const uint32_t n       = 0xe6546b64;
-    uint32_t              hash    = seed;
-    auto                  nBlocks = len / 4;
-    auto                 *blocks  = (const uint32_t *)key;
-
-    for (int i = 0; i < nBlocks; i++) {
-        uint32_t k = blocks[ i ];
-        k *= c1;
-        k = (k << r1) | (k >> (32 - r1));
-        k *= c2;
-        hash ^= k;
-        hash = ((hash << r2) | (hash >> (32 - r2))) * m + n;
-    }
-
-    auto    *tail = (const uint8_t *)(key + nBlocks * 4);
-    uint32_t k1   = 0;
-
-    switch (len & 3) {
-        case 3:
-            k1 ^= tail[ 2 ] << 16;
-        case 2:
-            k1 ^= tail[ 1 ] << 8;
-        case 1:
-            k1 ^= tail[ 0 ];
-
-            k1 *= c1;
-            k1 = (k1 << r1) | (k1 >> (32 - r1));
-            k1 *= c2;
-            hash ^= k1;
-    }
-
-    hash ^= len;
-    hash ^= (hash >> 16);
-    hash *= 0x85ebca6b;
-    hash ^= (hash >> 13);
-    hash *= 0xc2b2ae35;
-    hash ^= (hash >> 16);
-
-    return hash;
-}
-
-uint32_t hashPPF(const Eigen::Vector4f &ppfValue, float angleRadians, float distanceStep) {
-    const int key[ 4 ] = {int(ppfValue[ 0 ] / angleRadians), int(ppfValue[ 1 ] / angleRadians),
-                          int(ppfValue[ 2 ] / angleRadians), int(ppfValue[ 3 ] / distanceStep)};
-
-    return murmurhash3(key, 16, 42);
-}
-
-void transformRT(const Eigen::Vector3f &p, const Eigen::Vector3f &n, Eigen::Matrix3f &R,
-                 Eigen::Vector3f &t) {
-    float           angle = acos(n.x());    // rotation angle
-    Eigen::Vector3f axis(0, n.z(), -n.y()); // rotation axis
-
-    if (n.y() == 0 && n.z() == 0) {
-        axis(0) = 0;
-        axis(1) = 1;
-        axis(2) = 0;
-    }
-
-    Eigen::AngleAxisf rotationVector(angle, axis.normalized());
-    R = rotationVector.toRotationMatrix(); // rotation matrix
-    t = (-1) * R * p;
-}
-
 Eigen::Matrix4f transformRT(const Eigen::Vector3f &p, const Eigen::Vector3f &n) {
     float           angle = acos(n.x());    // rotation angle
     Eigen::Vector3f axis(0, n.z(), -n.y()); // rotation axis
@@ -358,11 +163,8 @@ Eigen::Matrix4f transformRT(const Eigen::Vector3f &p, const Eigen::Vector3f &n) 
 
 float computeAlpha(const Eigen::Vector3f &p1, const Eigen::Vector3f &p2,
                    const Eigen::Vector3f &n1) {
-    Eigen::Matrix3f R;
-    Eigen::Vector3f t;
-
-    transformRT(p1, n1, R, t);
-    Eigen::Vector3f mpt   = R * p2 + t;
+    auto            rt    = transformRT(p1, n1);
+    Eigen::Vector3f mpt   = rt.topLeftCorner(3, 3) * p2 + rt.topRightCorner(3, 1);
     float           alpha = atan2(-mpt(2), mpt(1));
     if (sin(alpha) * mpt(2) > 0) {
         alpha = -alpha;
@@ -539,129 +341,81 @@ void findClosestPoint(const KDTree &kdtree, const PointCloud &srcPC, std::vector
     distances = std::move(distancesTmp);
 }
 
-void getCoordinateSystemOnPlane(const Eigen::Vector3f &query, Eigen::Vector4f &u,
-                                Eigen::Vector4f &v) {
-    const Eigen::Vector4f vector = Eigen::Vector4f(query.x(), query.y(), query.z(), 0);
-    v                            = vector.unitOrthogonal();
-    u                            = vector.cross3(v);
+uint32_t murmurhash3(const int *key, uint32_t len, uint32_t seed) {
+    static const uint32_t c1      = 0xcc9e2d51;
+    static const uint32_t c2      = 0x1b873593;
+    static const uint32_t r1      = 15;
+    static const uint32_t r2      = 13;
+    static const uint32_t m       = 5;
+    static const uint32_t n       = 0xe6546b64;
+    uint32_t              hash    = seed;
+    auto                  nBlocks = len / 4;
+    auto                 *blocks  = (const uint32_t *)key;
+
+    for (int i = 0; i < nBlocks; i++) {
+        uint32_t k = blocks[ i ];
+        k *= c1;
+        k = (k << r1) | (k >> (32 - r1));
+        k *= c2;
+        hash ^= k;
+        hash = ((hash << r2) | (hash >> (32 - r2))) * m + n;
+    }
+
+    auto    *tail = (const uint8_t *)(key + nBlocks * 4);
+    uint32_t k1   = 0;
+
+    switch (len & 3) {
+        case 3:
+            k1 ^= tail[ 2 ] << 16;
+        case 2:
+            k1 ^= tail[ 1 ] << 8;
+        case 1:
+            k1 ^= tail[ 0 ];
+
+            k1 *= c1;
+            k1 = (k1 << r1) | (k1 >> (32 - r1));
+            k1 *= c2;
+            hash ^= k1;
+    }
+
+    hash ^= len;
+    hash ^= (hash >> 16);
+    hash *= 0x85ebca6b;
+    hash ^= (hash >> 13);
+    hash *= 0xc2b2ae35;
+    hash ^= (hash >> 16);
+
+    return hash;
 }
 
-bool isBoundary(const PointCloud &srcPC, const Eigen::Vector3f &point,
-                const Eigen::Vector3f                            &normal,
-                const std::vector<std::pair<std::size_t, float>> &indices, float angleThreshold) {
-    Eigen::Vector4f u = Eigen::Vector4f::Zero();
-    Eigen::Vector4f v = Eigen::Vector4f::Zero();
-    getCoordinateSystemOnPlane(normal, u, v);
-    std::vector<float> angles;
+uint32_t hashPPF(const Eigen::Vector4f &ppfValue, float angleRadians, float distanceStep) {
+    const int key[ 4 ] = {int(ppfValue[ 0 ] / angleRadians), int(ppfValue[ 1 ] / angleRadians),
+                          int(ppfValue[ 2 ] / angleRadians), int(ppfValue[ 3 ] / distanceStep)};
 
-    for (auto &idx : indices) {
-        auto &p     = srcPC.point[ idx.first ];
-        auto  delta = p - point;
-        if (delta == Eigen::Vector3f::Zero())
-            continue;
-
-        const Eigen::Vector4f vec = Eigen::Vector4f(delta.x(), delta.y(), delta.z(), 0);
-        angles.push_back(atan2(v.dot(vec), u.dot(vec)));
-    }
-
-    if (angles.empty())
-        return false;
-    std::sort(angles.begin(), angles.end());
-    // Compute the maximal angle difference between two consecutive angles
-    float dif;
-    float max_dif = 0;
-    for (size_t i = 0; i < angles.size() - 1; ++i) {
-        dif = abs(angles[ i + 1 ] - angles[ i ]);
-        if (max_dif < dif) {
-            max_dif = dif;
-        }
-    }
-
-    // Get the angle difference between the last and the first
-    dif = abs(2 * M_PI - angles[ angles.size() - 1 ] + angles[ 0 ]);
-    if (max_dif < dif)
-        max_dif = dif;
-
-    return max_dif > angleThreshold;
+    return murmurhash3(key, 16, 42);
 }
 
-std::vector<std::size_t> findEdge(const KDTree &kdtree, const PointCloud &srcPC, float radius,
-                                  float angleThreshold) {
-    float                    radius2 = radius * radius;
-    std::vector<std::size_t> results;
+uint32_t computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &n1, const Eigen::Vector3f &p2,
+                    const Eigen::Vector3f &n2, float angleStep, float distStep) {
 
-#pragma omp parallel for
-    for (int i = 0; i < srcPC.point.size(); i++) {
-        auto &p = srcPC.point[ i ];
-        auto &n = srcPC.normal[ i ];
-
-        std::vector<std::pair<std::size_t, float>> indices;
-        auto                                       searched =
-            kdtree.index->radiusSearch(&p[ 0 ], radius2, indices, nanoflann::SearchParams());
-        if (searched < 3)
-            continue;
-
-        if (isBoundary(srcPC, p, n, indices, angleThreshold)) {
-#pragma omp critical
-            { results.push_back(i); }
-        }
+    Eigen::Vector3f d  = p2 - p1;
+    float           dn = d.norm();
+    float           f1, f2, f3;
+    if (dn > 0) {
+        Eigen::Vector3f dNorm = d / dn;
+        f1                    = atan2((dNorm.cross(n1)).norm(), dNorm.dot(n1));
+        f2                    = atan2((dNorm.cross(n2)).norm(), dNorm.dot(n2));
+        f3                    = atan2((n1.cross(n2)).norm(), n1.dot(n2));
+    } else {
+        f1 = 0;
+        f2 = 0;
+        f3 = 0;
     }
 
-    return results;
+    return hashPPF({f1, f2, f3, dn}, angleStep, distStep);
 }
 
-std::vector<std::size_t> findEdge(const KDTree &kdtree, const PointCloud &srcPC, int knn) {
-    std::vector<float> sigma(srcPC.point.size(), 0);
-
-#pragma omp parallel for
-    for (int i = 0; i < srcPC.point.size(); i++) {
-        auto                          &p = srcPC.point[ i ];
-        std::vector<size_t>            indexes(knn);
-        std::vector<float>             dists(knn);
-        nanoflann::KNNResultSet<float> resultSet(knn);
-        resultSet.init(&indexes[ 0 ], &dists[ 0 ]);
-        auto searched = kdtree.index->findNeighbors(resultSet, &p[ 0 ], nanoflann::SearchParams());
-        if (!searched)
-            continue;
-
-        Eigen::MatrixXf vec = Eigen::MatrixXf::Zero(knn, 3);
-        for (int i = 0; i < knn; i++)
-            vec.row(i) = srcPC.point[ indexes[ i ] ];
-
-        Eigen::MatrixXf    mean = vec.colwise().mean();
-        Eigen::RowVectorXf meanVecRow(Eigen::RowVectorXf::Map(mean.data(), 3));
-        vec.rowwise() -= meanVecRow;
-
-        Eigen::MatrixXf                                cov = (vec.adjoint() * vec) / float(knn - 1);
-        Eigen::SelfAdjointEigenSolver<Eigen::MatrixXf> eigenSolver(cov);
-        if (eigenSolver.info() != Eigen::Success)
-            continue;
-
-        Eigen::VectorXf eigenValue = eigenSolver.eigenvalues();
-        sigma[ i ] = *std::min_element(eigenValue.begin(), eigenValue.end()) / eigenValue.sum();
-    }
-
-    auto minMax = std::minmax_element(sigma.begin(), sigma.end());
-    auto min    = *(minMax.first);
-    auto max    = *(minMax.second);
-    std::cout << "min:" << min << "\n"
-              << "max:" << max << std::endl;
-
-    std::vector<std::size_t> results;
-    float                    threshold = min + (max - min) * 36.f / 256.f;
-    for (int i = 0; i < sigma.size(); i++) {
-        if (sigma[ i ] > threshold)
-            results.push_back(i);
-    }
-    return results;
-}
-
-xsimd::batch<uint32_t> hashPPF(const xsimd::batch<float> &f1, const xsimd::batch<float> &f2,
-                               const xsimd::batch<float> &f3, const xsimd::batch<float> &dn,
-                               float angleStep, float distStep) {
-    auto rAngle = xsimd::broadcast<float>(angleStep);
-    auto rDist  = xsimd::broadcast<float>(distStep);
-
+xsimd::batch<uint32_t> murmurhash3(const std::vector<xsimd::batch<uint32_t>> &data, uint32_t seed) {
     static const auto c1   = xsimd::broadcast<uint32_t>(0xcc9e2d51);
     static const auto c2   = xsimd::broadcast<uint32_t>(0x1b873593);
     static const auto r1   = xsimd::broadcast<uint32_t>(15);
@@ -673,39 +427,16 @@ xsimd::batch<uint32_t> hashPPF(const xsimd::batch<float> &f1, const xsimd::batch
     static const auto n    = xsimd::broadcast<uint32_t>(0xe6546b64);
     static const auto p    = xsimd::broadcast<uint32_t>(0x85ebca6b);
     static const auto q    = xsimd::broadcast<uint32_t>(0xc2b2ae35);
-    static const auto seed = xsimd::broadcast<uint32_t>(42);
+    auto              hash = xsimd::broadcast<uint32_t>(seed);
 
-    auto dF1 = xsimd::batch_cast<uint32_t>(xsimd::ceil(f1 / rAngle));
-    auto dF2 = xsimd::batch_cast<uint32_t>(xsimd::ceil(f2 / rAngle));
-    auto dF3 = xsimd::batch_cast<uint32_t>(xsimd::ceil(f3 / rAngle));
-    auto dDn = xsimd::batch_cast<uint32_t>(xsimd::ceil(dn / rDist));
-
-    // murmurhash3
-    static const uint32_t len = 16;
-
-    auto k = dF1 * c1;
-    k      = (k << r1) | (k >> r3);
-    k *= c2;
-    auto hash = seed ^ k;
-    hash      = ((hash << r2) | (hash >> r4)) * m + n;
-
-    k = dF2 * c1;
-    k = (k << r1) | (k >> r3);
-    k *= c2;
-    hash ^= k;
-    hash = ((hash << r2) | (hash >> r4)) * m + n;
-
-    k = dF3 * c1;
-    k = (k << r1) | (k >> r3);
-    k *= c2;
-    hash ^= k;
-    hash = ((hash << r2) | (hash >> r4)) * m + n;
-
-    k = dDn * c1;
-    k = (k << r1) | (k >> r3);
-    k *= c2;
-    hash ^= k;
-    hash = ((hash << r2) | (hash >> r4)) * m + n;
+    static const uint32_t len = 4 * data.size();
+    for (auto k : data) {
+        k *= c1;
+        k = (k << r1) | (k >> r3);
+        k *= c2;
+        hash ^= k;
+        hash = ((hash << r2) | (hash >> r4)) * m + n;
+    }
 
     hash ^= len;
     hash ^= (hash >> r5);
@@ -715,6 +446,20 @@ xsimd::batch<uint32_t> hashPPF(const xsimd::batch<float> &f1, const xsimd::batch
     hash ^= (hash >> r5);
 
     return hash;
+}
+
+xsimd::batch<uint32_t> hashPPF(const xsimd::batch<float> &f1, const xsimd::batch<float> &f2,
+                               const xsimd::batch<float> &f3, const xsimd::batch<float> &dn,
+                               float angleStep, float distStep) {
+    auto rAngle = xsimd::broadcast<float>(angleStep);
+    auto rDist  = xsimd::broadcast<float>(distStep);
+
+    auto dF1 = xsimd::batch_cast<uint32_t>(xsimd::ceil(f1 / rAngle));
+    auto dF2 = xsimd::batch_cast<uint32_t>(xsimd::ceil(f2 / rAngle));
+    auto dF3 = xsimd::batch_cast<uint32_t>(xsimd::ceil(f3 / rAngle));
+    auto dDn = xsimd::batch_cast<uint32_t>(xsimd::ceil(dn / rDist));
+
+    return murmurhash3({dF1, dF2, dF3, dDn}, 42);
 }
 
 std::vector<uint32_t> computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &n1,
@@ -781,7 +526,7 @@ std::vector<uint32_t> computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3
         result.emplace_back(vhash[ i ]);
 
     for (int i = vec_size; i < size; i++)
-        result.push_back(hashPPF(computePPF(p1, p2[ i ], n1, n2[ i ]), angleStep, distStep));
+        result.push_back(computePPF(p1, n1, p2[ i ], n2[ i ], angleStep, distStep));
 
     return result;
 }
