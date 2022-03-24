@@ -76,10 +76,11 @@ PointCloud extraIndices(const ppf::PointCloud &pc, const std::vector<std::size_t
     return result;
 }
 
-void        normalizeNormal(ppf::PointCloud &pc) {
+void normalizeNormal(ppf::PointCloud &pc) {
+
 #pragma omp parallel for
-    for (auto &n : pc.normal) {
-        n.normalize();
+    for (int i = 0; i < pc.normal.size(); i++) {
+        pc.normal[ i ].normalize();
     }
 }
 

@@ -108,7 +108,7 @@ std::pair<PointCloud, PointCloud> findCorresponds(const PointCloud &srcPC, const
     PointCloud dst;
     dst.point.resize(size);
     dst.normal.resize(size);
-    //#pragma omp parallel for
+#pragma omp parallel for
     for (int i = 0; i < size; i++) {
         auto &node       = map[ i ];
         int   sceneIndex = node.first;
