@@ -15,13 +15,13 @@ ConvergenceCriteria::ConvergenceCriteria(int iterations_, float rejectDist_, flo
 }
 
 ConvergenceResult::ConvergenceResult()
-    : converged(false)
+    : pose(Eigen::Matrix4f::Identity())
     , type(ConvergenceType::ITER)
     , mse(std::numeric_limits<float>::max())
     , convergeRate(1)
     , iterations(0)
-    , pose(Eigen::Matrix4f::Identity())
-    , inliner(0) {
+    , inliner(0)
+    , converged(false) {
 }
 
 ICP::ICP(ConvergenceCriteria criteria)
@@ -124,8 +124,8 @@ std::pair<PointCloud, PointCloud> findCorresponds(const PointCloud &srcPC, const
 }
 
 struct IterResult {
-    std::size_t     validPairs = 0;
     Eigen::Matrix4f pose       = Eigen::Matrix4f::Identity();
+    std::size_t     validPairs = 0;
     float           mse        = std::numeric_limits<float>::max();
 };
 
@@ -134,7 +134,7 @@ IterResult iteration(const PointCloud &srcPC, const PointCloud &dstPC, const KDT
     auto modelScenePair = findCorresponds(srcPC, dstPC, kdtree, rejectDist);
     auto size           = modelScenePair.first.size();
     if (size < 6)
-        return IterResult{size};
+        return IterResult{Eigen::Matrix4f::Identity(), size};
 
     auto &src = modelScenePair.first;
     auto &dst = modelScenePair.second;
@@ -150,7 +150,7 @@ IterResult iteration(const PointCloud &srcPC, const PointCloud &dstPC, const KDT
         mse += sqrtf(dist);
     mse /= (float)distances2.size();
 
-    return IterResult{modelScenePair.first.size(), p, mse};
+    return IterResult{p, modelScenePair.first.size(), mse};
 }
 
 int inliner(const PointCloud &srcPC, const KDTree &kdtree, float inlineDist) {

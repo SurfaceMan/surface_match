@@ -514,9 +514,9 @@ std::vector<uint32_t> computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3
 
 std::vector<float> computeAlpha(Eigen::Matrix4f &rt, const vector &p2x, const vector &p2y,
                                 const vector &p2z) {
-    auto r00 = xsimd::broadcast(rt(0, 0));
-    auto r01 = xsimd::broadcast(rt(0, 1));
-    auto r02 = xsimd::broadcast(rt(0, 2));
+    // auto r00 = xsimd::broadcast(rt(0, 0));
+    // auto r01 = xsimd::broadcast(rt(0, 1));
+    // auto r02 = xsimd::broadcast(rt(0, 2));
     auto r10 = xsimd::broadcast(rt(1, 0));
     auto r11 = xsimd::broadcast(rt(1, 1));
     auto r12 = xsimd::broadcast(rt(1, 2));
@@ -524,12 +524,12 @@ std::vector<float> computeAlpha(Eigen::Matrix4f &rt, const vector &p2x, const ve
     auto r21 = xsimd::broadcast(rt(2, 1));
     auto r22 = xsimd::broadcast(rt(2, 2));
 
-    auto t0 = xsimd::broadcast(rt(0, 3));
+    // auto t0 = xsimd::broadcast(rt(0, 3));
     auto t1 = xsimd::broadcast(rt(1, 3));
     auto t2 = xsimd::broadcast(rt(2, 3));
 
     auto inverse = xsimd::broadcast(-1.f);
-    auto zero    = xsimd::broadcast(0.f);
+    // auto zero    = xsimd::broadcast(0.f);
 
     auto                  size      = p2x.size();
     constexpr std::size_t simd_size = xsimd::simd_type<float>::size;

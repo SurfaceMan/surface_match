@@ -46,13 +46,14 @@ enum class ConvergenceType {
 struct ConvergenceResult {
     ConvergenceResult();
 
-    bool            converged;    // whether be converged
-    ConvergenceType type;         // which cause converge
-    float           mse;          // last mse
-    float           convergeRate; // last converge rate
-    int             iterations;   // last iteration
-    Eigen::Matrix4f pose;         // last pose refined
-    int             inliner;      // last number of points inliner
+    Eigen::Matrix4f pose; // last pose refined
+    ConvergenceType type; // which cause converge
+
+    float mse;          // last mse
+    float convergeRate; // last converge rate
+    int   iterations;   // last iteration
+    int   inliner;      // last number of points inliner
+    bool  converged;    // whether be converged
 };
 
 class ICP {
