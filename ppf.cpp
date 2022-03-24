@@ -74,9 +74,15 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
     impl_->samplingDistanceRel = samplingDistanceRel;
     impl_->param               = param;
 
+    Timer  t("model kdtree");
     KDTree kdtree(model.point);
-    impl_->sampledModel   = extraIndices(model, samplePointCloud(model, sampleStep, &kdtree));
+    t.release();
+    Timer t1("model sample1");
+    impl_->sampledModel = extraIndices(model, samplePointCloud(model, sampleStep, &kdtree));
+    t1.release();
+    Timer t2("model sample2");
     impl_->reSampledModel = extraIndices(model, samplePointCloud(model, reSampleStep, &kdtree));
+    t2.release();
 
     std::cout << "model sample step:" << sampleStep << "\n"
               << "model sampled point size:" << impl_->sampledModel.point.size() << "\n"
@@ -89,6 +95,7 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
     if (impl_->reSampledModel.normal.empty())
         impl_->reSampledModel.normal = estimateNormal(impl_->reSampledModel, model);
 
+    Timer t3("model ppf");
     //[2] create hash table
     auto   size = sampledModel.size();
     vector px(size);
@@ -124,6 +131,7 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
             { hashTable[ ppf[ j ] ].emplace_back(i, alpha[ j ], 1); }
         }
     }
+    t3.release();
 
     impl_->hashTable = std::move(hashTable);
 }
@@ -165,16 +173,20 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     float reSampleStep    = modelDiameter * impl_->param.poseRefRelSamplingDistance;
 
     //[2.2] data from keyPointFraction/samplingDistanceRel
+    Timer  t("scene kdtree");
     KDTree sceneKdtree(scene.point);
-    float  sampleStep   = modelDiameter * samplingDistanceRel;
-    auto   sampledScene = extraIndices(scene, samplePointCloud(scene, sampleStep, &sceneKdtree));
+    t.release();
+    Timer t1("scene sample1");
+    float sampleStep   = modelDiameter * samplingDistanceRel;
+    auto  sampledScene = extraIndices(scene, samplePointCloud(scene, sampleStep, &sceneKdtree));
     if (sampledScene.normal.empty())
         sampledScene.normal = estimateNormal(sampledScene, scene);
-
+    t1.release();
+    Timer  t3("scene sample2");
     KDTree kdtree(sampledScene.point);
     float  keySampleStep = sqrtf(1.f / keyPointFraction) * sampleStep;
     auto   keypoint      = samplePointCloud(sampledScene, keySampleStep, &kdtree);
-
+    t3.release();
     std::cout << "scene sample step:" << sampleStep << "\n"
               << "scene sampled point size:" << sampledScene.point.size() << "\n"
               << "scene keypoint sample step:" << keySampleStep << "\n"
@@ -205,6 +217,7 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         matchResult->sampledScene = sampledScene;
     }
 
+    Timer              t2("scene ppf");
     std::vector<Pose>  poseList;
     std::vector<float> item(angleNum, 0);
 #pragma omp parallel for
@@ -302,6 +315,7 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
             }
         }
     }
+    t2.release();
 
     //[5] cluster
     auto clusters = clusterPose(poseList, 0.1f * modelDiameter, angleStep);
@@ -319,10 +333,12 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     PointCloud              reSampledScene;
     std::unique_ptr<KDTree> reSampledKdtree;
     if (param.densePoseRefinement) {
+        Timer t("icp prepare");
         reSampledScene  = extraIndices(scene, samplePointCloud(scene, reSampleStep, &sceneKdtree));
         reSampledKdtree = std::make_unique<KDTree>(reSampledScene.point);
     }
 
+    Timer t4("icp");
     using Target = std::pair<float, Eigen::Matrix4f>;
     std::vector<Target> result; //[score, pose]
     for (auto &p : cluster2) {
@@ -366,6 +382,7 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         if (result.size() >= param.numMatches)
             break;
     }
+    t4.release();
 
     std::sort(result.begin(), result.end(),
               [](const Target &a, const Target &b) { return a.first > b.first; });
