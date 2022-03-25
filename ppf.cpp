@@ -5,6 +5,7 @@
 
 #include <Eigen/Geometry>
 #include <map>
+#include <set>
 #include <utility>
 
 #define _USE_MATH_DEFINES
@@ -292,48 +293,44 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         }
 
         // [4]nms
-        auto                 thre = voteThreshold / 2.0f;
-        std::list<Candidate> maxVal;
-        const int            countLimit = 3;
+        auto cmp = [](const Candidate &a, const Candidate &b) { return a.vote > b.vote; };
+        std::multiset<Candidate, decltype(cmp)> maxVal(cmp);
+
+        auto      thre       = voteThreshold / 2.0f;
+        const int countLimit = 3;
         for (int i = 0; i < accumulator.size(); i++) {
             if (accumulator[ i ].first < thre)
                 continue;
 
             auto &angles = accumulator[ i ].second;
-            for (int j = 0; j < angles.size(); j++) {
-                auto vote = angles[ j ];
-                if (vote < thre)
-                    continue;
+            auto  iter   = std::max_element(angles.begin(), angles.end());
+            int   j      = iter - angles.begin();
+            auto  vote   = *iter;
+            if (vote < thre)
+                continue;
 
-                bool accepted = false;
-                for (auto iter = maxVal.begin(); iter != maxVal.end(); iter++) {
-                    if (vote < iter->vote)
-                        continue;
-                    maxVal.insert(iter, {vote, i, j});
-                    accepted = true;
-                    break;
-                }
+            vote += (j == 0) ? angles[ maxAngleIndex ] : angles[ j - 1 ];
+            vote += (j == maxAngleIndex) ? angles[ 0 ] : angles[ j + 1 ];
 
-                if (!accepted && maxVal.size() < countLimit) {
-                    maxVal.emplace_back(vote, i, j);
-                    continue;
-                }
-
-                if (maxVal.size() > countLimit)
-                    maxVal.pop_back();
-            }
+            maxVal.emplace(vote, i, j);
+            if (maxVal.size() > countLimit)
+                maxVal.erase(--maxVal.end());
         }
+        if (maxVal.empty())
+            continue;
 
         auto iT = rt.inverse();
-        for (auto iter = maxVal.begin(); iter != maxVal.end(); iter++) {
-            if (iter->vote < maxVal.begin()->vote * 0.95)
+        thre    = maxVal.begin()->vote * 0.95;
+        for (auto &val : maxVal) {
+            if (val.vote < thre)
                 continue;
-            auto &pMax = modelSampled.point[ iter->refId ];
-            auto &nMax = modelSampled.normal[ iter->refId ];
 
-            float           alphaAngle = M_2PI * iter->angleId / maxAngleIndex - M_PI;
+            auto &pMax = modelSampled.point[ val.refId ];
+            auto &nMax = modelSampled.normal[ val.refId ];
+
+            float           alphaAngle = M_2PI * val.angleId / maxAngleIndex - M_PI;
             Eigen::Matrix4f TPose      = iT * (XRotMat(alphaAngle) * transformRT(pMax, nMax));
-            Pose            pose(iter->vote);
+            Pose            pose(val.vote);
             pose.updatePose(TPose);
 
 #pragma omp critical
