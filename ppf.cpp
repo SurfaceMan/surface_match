@@ -33,6 +33,19 @@ public:
     }
 };
 
+struct Candidate {
+public:
+    Candidate(float vote_, int refId_, int angleId_)
+        : vote(vote_)
+        , refId(refId_)
+        , angleId(angleId_) {
+    }
+
+    float vote = 0;
+    int   refId;
+    int   angleId;
+};
+
 struct Detector::IMPL {
 public:
     // model
@@ -279,40 +292,52 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         }
 
         // [4]nms
-        float maxVal = 0;
-        for (auto &item1 : accumulator) {
-            if (item1.first < 1)
-                continue;
-            for (auto &item2 : item1.second) {
-                if (item2 > maxVal)
-                    maxVal = item2;
-            }
-        }
-        if (maxVal < voteThreshold / 2.0)
-            continue;
-
-        auto iT = rt.inverse();
-        maxVal  = maxVal * 0.95f;
+        auto                 thre = voteThreshold / 2.0f;
+        std::list<Candidate> maxVal;
+        const int            countLimit = 3;
         for (int i = 0; i < accumulator.size(); i++) {
-            auto &item1 = accumulator[ i ];
-            if (item1.first < 1)
+            if (accumulator[ i ].first < thre)
                 continue;
-            for (int j = 0; j < angleNum; j++) {
-                auto &vote = item1.second[ j ];
-                if (vote <= maxVal)
+
+            auto &angles = accumulator[ i ].second;
+            for (int j = 0; j < angles.size(); j++) {
+                auto vote = angles[ j ];
+                if (vote < thre)
                     continue;
 
-                auto &pMax = modelSampled.point[ i ];
-                auto &nMax = modelSampled.normal[ i ];
+                bool accepted = false;
+                for (auto iter = maxVal.begin(); iter != maxVal.end(); iter++) {
+                    if (vote < iter->vote)
+                        continue;
+                    maxVal.insert(iter, {vote, i, j});
+                    accepted = true;
+                    break;
+                }
 
-                float           alphaAngle = M_2PI * j / maxAngleIndex - M_PI;
-                Eigen::Matrix4f TPose      = iT * (XRotMat(alphaAngle) * transformRT(pMax, nMax));
-                Pose            pose(vote);
-                pose.updatePose(TPose);
+                if (!accepted && maxVal.size() < countLimit) {
+                    maxVal.emplace_back(vote, i, j);
+                    continue;
+                }
+
+                if (maxVal.size() > countLimit)
+                    maxVal.pop_back();
+            }
+        }
+
+        auto iT = rt.inverse();
+        for (auto iter = maxVal.begin(); iter != maxVal.end(); iter++) {
+            if (iter->vote < maxVal.begin()->vote * 0.95)
+                continue;
+            auto &pMax = modelSampled.point[ iter->refId ];
+            auto &nMax = modelSampled.normal[ iter->refId ];
+
+            float           alphaAngle = M_2PI * iter->angleId / maxAngleIndex - M_PI;
+            Eigen::Matrix4f TPose      = iT * (XRotMat(alphaAngle) * transformRT(pMax, nMax));
+            Pose            pose(iter->vote);
+            pose.updatePose(TPose);
 
 #pragma omp critical
-                { poseList.push_back(pose); }
-            }
+            { poseList.push_back(pose); }
         }
     }
     t2.release();
