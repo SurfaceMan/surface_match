@@ -169,7 +169,7 @@ std::vector<Pose> sortPoses(std::vector<Pose> poseList) {
 }
 
 bool comparePose(const Pose &p1, const Pose &p2, float distanceThreshold, float angleThreshold) {
-    float d   = (p1.pose.translation() - p2.pose.translation()).norm();
+    float d   = (p1.pose.topRightCorner(3, 1) - p2.pose.topRightCorner(3, 1)).norm();
     float phi = std::abs(p1.r.angle() - p2.r.angle());
     return (d < distanceThreshold && phi < angleThreshold);
 }
@@ -198,12 +198,10 @@ std::vector<std::vector<Pose>> clusterPose(const std::vector<Pose> &poseList,
 }
 
 std::vector<Pose> clusterPose2(std::vector<Pose> &poseList, Eigen::Vector3f &pos, float threshold) {
-    Eigen::Vector4f p(pos.x(), pos.y(), pos.z(), 1);
-
-    std::vector<Eigen::Vector4f> trans;
+    std::vector<Eigen::Vector3f> trans;
     trans.reserve(poseList.size());
     for (auto &pose : poseList) {
-        trans.emplace_back(pose.pose.matrix() * p);
+        trans.emplace_back(pose.pose.topLeftCorner(3, 3) * pos + pose.pose.topRightCorner(3, 1));
     }
 
     float             squaredThreshold = threshold * threshold;
@@ -265,7 +263,7 @@ std::vector<Pose> avgClusters(const std::vector<std::vector<Pose>> &clusters) {
         std::vector<Eigen::Quaternionf> qs;
         float                           votes = 0;
         for (auto &pose : cluster) {
-            p += pose.pose.translation();
+            p += pose.pose.topRightCorner(3, 1);
             votes += pose.numVotes;
             qs.push_back(pose.q);
         }

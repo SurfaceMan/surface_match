@@ -68,19 +68,19 @@ Pose::Pose(float votes)
 void Pose::updatePose(const Eigen::Matrix4f &newPose) {
     pose = newPose;
 
-    auto rMatrix = pose.rotation();
-    r            = rMatrix;
-    q            = rMatrix;
+    Eigen::Matrix3f rMatrix = pose.topLeftCorner(3, 3);
+    r                       = rMatrix;
+    q                       = rMatrix;
 }
 
 void Pose::updatePoseT(const Eigen::Vector3f &t) {
-    pose.translation() = t;
+    pose.topRightCorner(3, 1) = t;
 }
 
 void Pose::updatePoseQuat(const Eigen::Quaternionf &q_) {
-    q             = q_;
-    r             = q.matrix();
-    pose.linear() = q.matrix();
+    q                        = q_;
+    r                        = q.matrix();
+    pose.topLeftCorner(3, 3) = q.matrix();
 }
 
 TrainParam::TrainParam(float featDistanceStepRel_, int featAngleResolution_,

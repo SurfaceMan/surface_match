@@ -364,7 +364,7 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     using Target = std::pair<float, Eigen::Matrix4f>;
     std::vector<Target> result; //[score, pose]
     for (auto &p : cluster2) {
-        auto pose  = p.pose.matrix();
+        auto pose  = p.pose;
         auto score = p.numVotes;
 
         if (score < voteThreshold)

@@ -66,7 +66,7 @@ public:
 struct Pose {
 public:
     float           numVotes;
-    Eigen::Affine3f pose;
+    Eigen::Matrix4f pose;
 
     Eigen::AngleAxisf  r;
     Eigen::Quaternionf q;
