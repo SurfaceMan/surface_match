@@ -135,7 +135,7 @@ IterResult iteration(const PointCloud &srcPC, const PointCloud &dstPC, const KDT
         return IterResult{Eigen::Matrix4f::Identity(), size};
 
     auto p   = minimizePointToPlaneMetric(srcPC, dstPC, modelScenePair);
-    auto pct = transformPointCloud(extraIndices(srcPC, modelScenePair.first), p);
+    auto pct = transformPointCloud(extraIndices(srcPC, modelScenePair.first), p, false);
 
     std::vector<int>   indices2;
     std::vector<float> distances2;
@@ -199,7 +199,7 @@ std::vector<ConvergenceResult> ICP::regist(const PointCloud &src, const PointClo
 
         ConvergenceResult result;
         result.pose = initPose;
-        auto srcTmp = initPose.isIdentity() ? src : transformPointCloud(src, initPose);
+        auto srcTmp = initPose.isIdentity() ? src : transformPointCloud(src, initPose, false);
 
         while (result.iterations < criteria_.iterations) {
             auto tmpResult = iteration(srcTmp, dst, kdtree, criteria_.rejectDist);
@@ -237,12 +237,12 @@ std::vector<ConvergenceResult> ICP::regist(const PointCloud &src, const PointClo
             }
 
             if (stop) {
-                auto pct       = transformPointCloud(src, result.pose);
+                auto pct       = transformPointCloud(src, result.pose, false);
                 result.inliner = inliner(pct, kdtree, criteria_.inlinerDist);
                 break;
             }
 
-            srcTmp = transformPointCloud(srcTmp, tmpResult.pose);
+            srcTmp = transformPointCloud(srcTmp, tmpResult.pose, false);
         }
 
         results[ i ] = result;

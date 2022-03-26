@@ -102,13 +102,14 @@ BoundingBox computeBoundingBox(const ppf::PointCloud &pc) {
     return {min, max};
 }
 
-PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f &pose) {
-    auto size      = pc.size();
-    auto hasNormal = pc.hasNormal();
+PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f &pose,
+                               bool useNormal) {
+    auto size     = pc.size();
+    auto doNormal = pc.hasNormal() & useNormal;
 
     PointCloud result;
     result.point.resize(size);
-    if (hasNormal)
+    if (doNormal)
         result.normal.resize(size);
 
     auto r = pose.topLeftCorner(3, 3);
@@ -117,7 +118,7 @@ PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f 
 #pragma omp parallel for
     for (int i = 0; i < size; i++) {
         result.point[ i ] = r * pc.point[ i ] + t;
-        if (hasNormal)
+        if (doNormal)
             result.normal[ i ] = r * pc.normal[ i ];
     }
 

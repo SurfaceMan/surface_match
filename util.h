@@ -27,7 +27,8 @@ void normalizeNormal(ppf::PointCloud &pc);
 
 BoundingBox computeBoundingBox(const ppf::PointCloud &pc);
 
-PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f &pose);
+PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f &pose,
+                               bool useNormal = true);
 
 std::vector<Eigen::Vector3f> estimateNormal(const ppf::PointCloud &pc);
 
