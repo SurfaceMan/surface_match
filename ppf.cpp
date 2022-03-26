@@ -89,7 +89,7 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
     impl_->param               = param;
 
     Timer  t("model kdtree");
-    KDTree kdtree(model.point);
+    KDTree kdtree(model.point, 10, {model.box.min, model.box.max});
     t.release();
     Timer t1("model sample1");
     impl_->sampledModel = extraIndices(model, samplePointCloud(model, sampleStep, &kdtree));
@@ -188,7 +188,7 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
 
     //[2.2] data from keyPointFraction/samplingDistanceRel
     Timer  t("scene kdtree");
-    KDTree sceneKdtree(scene.point);
+    KDTree sceneKdtree(scene.point, 10, {scene.box.min, scene.box.max});
     t.release();
     Timer t1("scene sample1");
     float sampleStep   = modelDiameter * samplingDistanceRel;
@@ -197,7 +197,7 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         sampledScene.normal = estimateNormal(sampledScene, scene);
     t1.release();
     Timer  t3("scene sample2");
-    KDTree kdtree(sampledScene.point);
+    KDTree kdtree(sampledScene.point, 10, {sampledScene.box.min, sampledScene.box.max});
     float  keySampleStep = sqrtf(1.f / keyPointFraction) * sampleStep;
     auto   keypoint      = samplePointCloud(sampledScene, keySampleStep, &kdtree);
     t3.release();
@@ -357,7 +357,9 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     if (param.densePoseRefinement) {
         Timer t("icp prepare");
         reSampledScene  = extraIndices(scene, samplePointCloud(scene, reSampleStep, &sceneKdtree));
-        reSampledKdtree = std::make_unique<KDTree>(reSampledScene.point);
+        reSampledKdtree = std::make_unique<KDTree>(
+            reSampledScene.point, 10,
+            std::vector<Eigen::Vector3f>{reSampledScene.box.min, reSampledScene.box.max});
     }
 
     Timer t4("icp");

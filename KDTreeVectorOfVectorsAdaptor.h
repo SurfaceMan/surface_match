@@ -62,8 +62,10 @@ struct KDTreeVectorOfVectorsAdaptor {
 
     /// Constructor: takes a const ref to the vector of vectors object with the
     /// data points
-    KDTreeVectorOfVectorsAdaptor(const VectorOfVectorsType &mat, const int leaf_max_size = 10)
-        : m_data(mat) {
+    KDTreeVectorOfVectorsAdaptor(const VectorOfVectorsType &mat, const int leaf_max_size = 10,
+                                 VectorOfVectorsType box = {})
+        : m_data(mat)
+        , m_box(box) {
         assert(mat.size() != 0 && mat[ 0 ].size() != 0);
         const size_t dims = mat[ 0 ].size();
         if (DIM > 0 && static_cast<int>(dims) != DIM)
@@ -79,6 +81,7 @@ struct KDTreeVectorOfVectorsAdaptor {
     }
 
     const VectorOfVectorsType &m_data;
+    const VectorOfVectorsType &m_box;
 
     /** Query for the \a num_closest closest points to a given point
      *  (entered as query_point[0:dim-1]).
@@ -120,8 +123,15 @@ struct KDTreeVectorOfVectorsAdaptor {
     // Return true if the BBOX was already computed by the class and returned
     // in "bb" so it can be avoided to redo it again. Look at bb.size() to
     // find out the expected dimensionality (e.g. 2 or 3 for point clouds)
-    template <class BBOX> bool kdtree_get_bbox(BBOX & /*bb*/) const {
-        return false;
+    template <class BBOX> bool kdtree_get_bbox(BBOX &bb) const {
+        if (m_box.size() != 2)
+            return false;
+
+        for (int i = 0; i < DIM; i++) {
+            bb[ i ].low  = m_box[ 0 ][ i ];
+            bb[ i ].high = m_box[ 1 ][ i ];
+        }
+        return true;
     }
 
     /** @} */
