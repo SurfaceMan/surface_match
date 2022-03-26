@@ -44,23 +44,6 @@ bool PointCloud::empty() const {
     return point.empty();
 }
 
-BoxGrid::BoxGrid()
-    : step(0)
-    , xBins(0)
-    , yBins(0)
-    , zBins(0) {
-}
-
-const int BoxGrid::INVALID;
-
-int BoxGrid::grid2Index(const Eigen::Vector3i &index_) const {
-    return index[ index_.x() ][ index_.y() ][ index_.z() ];
-}
-
-Eigen::Vector3i BoxGrid::index2Grid(int index_) const {
-    return grid[ index_ ];
-}
-
 Pose::Pose(float votes)
     : numVotes(votes) {
 }

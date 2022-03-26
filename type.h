@@ -45,24 +45,6 @@ public:
     bool        empty() const;
 };
 
-struct BoxGrid {
-public:
-    static const int INVALID = -1;
-
-    std::vector<Eigen::Vector3i>               grid;  // PointCloud--->grid
-    std::vector<std::vector<std::vector<int>>> index; // grid--->PointCloud
-
-    float step; // size of box
-    int   xBins;
-    int   yBins;
-    int   zBins;
-
-    BoxGrid();
-
-    int             grid2Index(const Eigen::Vector3i &grid) const;
-    Eigen::Vector3i index2Grid(int index) const;
-};
-
 struct Pose {
 public:
     float           numVotes;
