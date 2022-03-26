@@ -111,13 +111,13 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
 
     Timer t3("model ppf");
     //[2] create hash table
-    auto   size = sampledModel.size();
-    vector px(size);
-    vector py(size);
-    vector pz(size);
-    vector nx(size);
-    vector ny(size);
-    vector nz(size);
+    auto    size = sampledModel.size();
+    vectorF px(size);
+    vectorF py(size);
+    vectorF pz(size);
+    vectorF nx(size);
+    vectorF ny(size);
+    vectorF nz(size);
     for (int i = 0; i < size; i++) {
         auto &p = sampledModel.point[ i ];
         auto &n = sampledModel.normal[ i ];
@@ -247,13 +247,13 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         if (searched < voteThreshold)
             continue;
 
-        auto   rows = searched - 1;
-        vector px(rows);
-        vector py(rows);
-        vector pz(rows);
-        vector nx(rows);
-        vector ny(rows);
-        vector nz(rows);
+        auto    rows = searched - 1;
+        vectorF px(rows);
+        vectorF py(rows);
+        vectorF pz(rows);
+        vectorF nx(rows);
+        vectorF ny(rows);
+        vectorF nz(rows);
         for (std::size_t i = 0; i < rows; i++) {
             pointIndex = indices[ i + 1 ].first;
             auto &p    = sampledScene.point[ pointIndex ];

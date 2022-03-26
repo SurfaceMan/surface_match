@@ -15,7 +15,8 @@
 #include <xsimd/xsimd.hpp>
 
 namespace ppf {
-using vector = std::vector<float, xsimd::aligned_allocator<float>>;
+using vectorF = std::vector<float, xsimd::aligned_allocator<float>>;
+using vectorI = std::vector<uint32_t, xsimd::aligned_allocator<uint32_t>>;
 
 std::vector<std::size_t> samplePointCloud(const ppf::PointCloud &pc, float sampleStep,
                                           KDTree *kdtree = nullptr);
@@ -65,12 +66,11 @@ void saveText(const std::string &filename, const PointCloud &pc);
 void findClosestPoint(const KDTree &kdtree, const PointCloud &srcPC, std::vector<int> &indices,
                       std::vector<float> &distances);
 
-std::vector<uint32_t> computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &n1,
-                                 const vector &p2x, const vector &p2y, const vector &p2z,
-                                 const vector &n2x, const vector &n2y, const vector &n2z,
-                                 float angleStep, float distStep);
+vectorI computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &n1, const vectorF &p2x,
+                   const vectorF &p2y, const vectorF &p2z, const vectorF &n2x, const vectorF &n2y,
+                   const vectorF &n2z, float angleStep, float distStep);
 
-std::vector<float> computeAlpha(Eigen::Matrix4f &rt, const vector &p2x, const vector &p2y,
-                                const vector &p2z);
+vectorF computeAlpha(Eigen::Matrix4f &rt, const vectorF &p2x, const vectorF &p2y,
+                     const vectorF &p2z);
 
 } // namespace ppf

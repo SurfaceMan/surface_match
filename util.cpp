@@ -453,16 +453,12 @@ xsimd::batch<uint32_t> hashPPF(const xsimd::batch<float> &f1, const xsimd::batch
     return murmurhash3({dF1, dF2, dF3, dDn}, 42);
 }
 
-std::vector<uint32_t> computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &n1,
-                                 const vector &p2x, const vector &p2y, const vector &p2z,
-                                 const vector &n2x, const vector &n2y, const vector &n2z,
-                                 float angleStep, float distStep) {
-    using vector2                   = std::vector<uint32_t, xsimd::aligned_allocator<uint32_t>>;
+vectorI computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &n1, const vectorF &p2x,
+                   const vectorF &p2y, const vectorF &p2z, const vectorF &n2x, const vectorF &n2y,
+                   const vectorF &n2z, float angleStep, float distStep) {
     auto                  size      = p2x.size();
     constexpr std::size_t simd_size = xsimd::simd_type<float>::size;
     std::size_t           vec_size  = size - size % simd_size;
-    std::vector<uint32_t> result;
-    result.reserve(size);
 
     auto rp1x = xsimd::broadcast<float>(p1.x());
     auto rp1y = xsimd::broadcast<float>(p1.y());
@@ -471,7 +467,7 @@ std::vector<uint32_t> computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3
     auto rn1y = xsimd::broadcast<float>(n1.y());
     auto rn1z = xsimd::broadcast<float>(n1.z());
 
-    vector2 vhash(vec_size);
+    vectorI result(size);
     for (int i = 0; i < vec_size; i += simd_size) {
         auto rp2x = xsimd::load(&p2x[ i ]);
         auto rp2y = xsimd::load(&p2y[ i ]);
@@ -494,21 +490,18 @@ std::vector<uint32_t> computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3
         auto f3 = xsimd::acos(rn2x * rn1x + rn2y * rn1y + rn2z * rn1z);
 
         auto hash = hashPPF(f1, f2, f3, norm, angleStep, distStep);
-        xsimd::store(&vhash[ i ], hash);
+        xsimd::store(&result[ i ], hash);
     }
 
-    for (int i = 0; i < vec_size; i++)
-        result.emplace_back(vhash[ i ]);
-
     for (int i = vec_size; i < size; i++)
-        result.push_back(computePPF(p1, n1, {p2x[ i ], p2y[ i ], p2z[ i ]},
-                                    {n2x[ i ], n2y[ i ], n2z[ i ]}, angleStep, distStep));
+        result[ i ] = computePPF(p1, n1, {p2x[ i ], p2y[ i ], p2z[ i ]},
+                                 {n2x[ i ], n2y[ i ], n2z[ i ]}, angleStep, distStep);
 
     return result;
 }
 
-std::vector<float> computeAlpha(Eigen::Matrix4f &rt, const vector &p2x, const vector &p2y,
-                                const vector &p2z) {
+vectorF computeAlpha(Eigen::Matrix4f &rt, const vectorF &p2x, const vectorF &p2y,
+                     const vectorF &p2z) {
     // auto r00 = xsimd::broadcast(rt(0, 0));
     // auto r01 = xsimd::broadcast(rt(0, 1));
     // auto r02 = xsimd::broadcast(rt(0, 2));
@@ -529,7 +522,7 @@ std::vector<float> computeAlpha(Eigen::Matrix4f &rt, const vector &p2x, const ve
     auto                  size      = p2x.size();
     constexpr std::size_t simd_size = xsimd::simd_type<float>::size;
     std::size_t           vec_size  = size - size % simd_size;
-    std::vector<float>    result(size);
+    vectorF               result(size);
 
     for (int i = 0; i < vec_size; i += simd_size) {
         auto rp2x = xsimd::load(&p2x[ i ]);
@@ -543,7 +536,7 @@ std::vector<float> computeAlpha(Eigen::Matrix4f &rt, const vector &p2x, const ve
         auto alpha  = xsimd::atan2(z * inverse, y);
         auto ialpha = alpha * inverse;
         auto t      = xsimd::select(xsimd::sin(alpha) * z > 0, ialpha, alpha);
-        xsimd::store_unaligned(&result[ i ], t);
+        xsimd::store(&result[ i ], t);
     }
 
     for (int i = vec_size; i < size; i++)
