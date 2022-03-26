@@ -88,20 +88,15 @@ BoundingBox computeBoundingBox(const ppf::PointCloud &pc) {
     Eigen::Vector3f min = pc.point[ 0 ];
     Eigen::Vector3f max = min;
 
-    // bounding box
-    for (auto &p : pc.point) {
-        if (p.x() > max.x())
-            max.x() = p.x();
-        else if (p.x() < min.x())
-            min.x() = p.x();
-        if (p.y() > max.y())
-            max.y() = p.y();
-        else if (p.y() < min.y())
-            min.y() = p.y();
-        if (p.z() > max.z())
-            max.z() = p.z();
-        else if (p.z() < min.z())
-            min.z() = p.z();
+// bounding box
+#pragma omp parallel for
+    for (int dim = 0; dim < 3; dim++) {
+        for (auto &p : pc.point) {
+            if (p[ dim ] > max[ dim ])
+                max[ dim ] = p[ dim ];
+            else if (p[ dim ] < min[ dim ])
+                min[ dim ] = p[ dim ];
+        }
     }
 
     return {min, max};
