@@ -115,7 +115,9 @@ std::pair<std::vector<std::size_t>, std::vector<std::size_t>>
     for (int i = 0; i < size; i++) {
         auto &node         = map[ i ];
         result.second[ i ] = node.first;
-        result.first[ i ]  = *std::min_element(node.second.begin(), node.second.end());
+        result.first[ i ] =
+            *std::min_element(node.second.begin(), node.second.end(),
+                              [ & ](int a, int b) { return distances[ a ] < distances[ b ]; });
     }
 
     return result;
