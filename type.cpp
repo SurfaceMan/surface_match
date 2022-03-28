@@ -45,7 +45,8 @@ bool PointCloud::empty() const {
 }
 
 Pose::Pose(float votes)
-    : numVotes(votes) {
+    : pose(Eigen::Matrix4f::Identity())
+    , numVotes(votes) {
 }
 
 void Pose::updatePose(const Eigen::Matrix4f &newPose) {

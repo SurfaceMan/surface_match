@@ -47,11 +47,10 @@ public:
 
 struct Pose {
 public:
-    float           numVotes;
-    Eigen::Matrix4f pose;
-
+    Eigen::Matrix4f    pose;
     Eigen::AngleAxisf  r;
     Eigen::Quaternionf q;
+    float              numVotes;
 
     explicit Pose(float votes);
 
