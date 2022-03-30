@@ -13,7 +13,7 @@
 
 #include <Eigen/Core>
 #include <Eigen/Geometry>
-#include <KDTreeVectorOfVectorsAdaptor.h>
+#include <kdtree.h>
 #include <map>
 #include <tuple>
 #include <vector>

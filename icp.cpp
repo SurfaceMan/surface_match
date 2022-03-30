@@ -1,6 +1,5 @@
 #include <icp.h>
 
-#include <KDTreeVectorOfVectorsAdaptor.h>
 #include <util.h>
 
 namespace ppf {

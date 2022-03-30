@@ -13,14 +13,14 @@ endif()
 
 set(EIGEN3_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/eigen)
 set(XSIMD_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/xsimd/include)
+set(KDTREE_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/kdtree)
 
 add_executable(ppf  
-    main.cpp ppf.h ppf.cpp util.h util.cpp type.h type.cpp icp.h icp.cpp KDTreeVectorOfVectorsAdaptor.h
+    main.cpp ppf.h ppf.cpp util.h util.cpp type.h type.cpp icp.h icp.cpp 
 )
 
 target_include_directories(ppf PRIVATE 
-    "E:/project2/2022-2-9ppf/nanoflann/include"
-    "/home/abc/project/3_surface_match/nanoflann/include"
+    ${KDTREE_INCLUDE_DIRS}
     ${XSIMD_INCLUDE_DIRS}
     ${EIGEN3_INCLUDE_DIRS}
     ${CMAKE_CURRENT_SOURCE_DIR}
