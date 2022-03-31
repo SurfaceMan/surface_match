@@ -18,8 +18,8 @@ namespace ppf {
 using vectorF = std::vector<float, xsimd::aligned_allocator<float>>;
 using vectorI = std::vector<uint32_t, xsimd::aligned_allocator<uint32_t>>;
 
-std::vector<std::size_t> samplePointCloud(const ppf::PointCloud &pc, float sampleStep,
-                                          KDTree *kdtree = nullptr);
+std::vector<std::size_t> samplePointCloud(const KDTree &tree, float sampleStep,
+                                          std::vector<int> *indicesOfIndices = nullptr);
 
 PointCloud extraIndices(const ppf::PointCloud &pc, const std::vector<std::size_t> &indices);
 

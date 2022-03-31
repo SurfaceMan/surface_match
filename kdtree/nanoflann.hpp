@@ -77,6 +77,8 @@ template <typename T> T pi_const() {
     return static_cast<T>(3.14159265358979323846);
 }
 
+const int INVALID_INDEX = -1;
+
 /**
  * Traits if object is resizable and assignable (typically has a resize | assign
  * method)
@@ -1200,7 +1202,9 @@ public:
             DistanceType worst_dist = result_set.worstDist();
             for (Offset i = node->node_type.lr.left; i < node->node_type.lr.right; ++i) {
                 const AccessorType accessor = BaseClassRef::vAcc[ i ]; // reorder... : i;
-                DistanceType       dist =
+                if (accessor == INVALID_INDEX)
+                    continue;
+                DistanceType dist =
                     distance.evalMetric(vec, accessor, (DIM > 0 ? DIM : BaseClassRef::dim));
                 if (dist < worst_dist) {
                     if (!result_set.addPoint(dist, BaseClassRef::vAcc[ i ])) {

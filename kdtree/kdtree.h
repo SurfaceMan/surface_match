@@ -50,7 +50,7 @@
  *         (typically, size_t of int)
  */
 template <class VectorOfVectorsType, typename num_t = float, int DIM = 3,
-          class Distance = nanoflann::metric_L2, typename IndexType = size_t>
+          class Distance = nanoflann::metric_L2, typename IndexType = int>
 struct KDTreeVectorOfVectorsAdaptor {
     using self_t   = KDTreeVectorOfVectorsAdaptor<VectorOfVectorsType, num_t, DIM, Distance>;
     using metric_t = typename Distance::template traits<num_t, self_t>::distance_t;
@@ -82,6 +82,8 @@ struct KDTreeVectorOfVectorsAdaptor {
 
     const VectorOfVectorsType &m_data;
     const VectorOfVectorsType &m_box;
+
+    std::vector<IndexType> vAccTmp;
 
     /** Query for the \a num_closest closest points to a given point
      *  (entered as query_point[0:dim-1]).
@@ -132,6 +134,19 @@ struct KDTreeVectorOfVectorsAdaptor {
             bb[ i ].high = m_box[ 1 ][ i ];
         }
         return true;
+    }
+
+    void reduce(std::vector<int> indices) {
+        if (indices.size() != index->vAcc.size())
+            throw std::runtime_error("Unmatched indices size");
+        vAccTmp     = std::move(index->vAcc);
+        index->vAcc = std::move(indices);
+    }
+
+    void restore() {
+        if (vAccTmp.empty())
+            return;
+        index->vAcc = std::move(vAccTmp);
     }
 
     /** @} */

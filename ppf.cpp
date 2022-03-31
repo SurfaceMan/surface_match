@@ -92,10 +92,10 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
     KDTree kdtree(model.point, 10, {model.box.min, model.box.max});
     t.release();
     Timer t1("model sample1");
-    impl_->sampledModel = extraIndices(model, samplePointCloud(model, sampleStep, &kdtree));
+    impl_->sampledModel = extraIndices(model, samplePointCloud(kdtree, sampleStep));
     t1.release();
     Timer t2("model sample2");
-    impl_->reSampledModel = extraIndices(model, samplePointCloud(model, reSampleStep, &kdtree));
+    impl_->reSampledModel = extraIndices(model, samplePointCloud(kdtree, reSampleStep));
     t2.release();
 
     std::cout << "model sample step:" << sampleStep << "\n"
@@ -190,19 +190,20 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     Timer  t("scene kdtree");
     KDTree sceneKdtree(scene.point, 10, {scene.box.min, scene.box.max});
     t.release();
-    Timer t1("scene sample1");
-    float sampleStep   = modelDiameter * samplingDistanceRel;
-    auto  sampledScene = extraIndices(scene, samplePointCloud(scene, sampleStep, &sceneKdtree));
-    if (sampledScene.normal.empty())
-        sampledScene.normal = estimateNormal(sampledScene, scene);
+    Timer            t1("scene sample1");
+    float            sampleStep = modelDiameter * samplingDistanceRel;
+    std::vector<int> indicesOfSampleScene;
+    auto sampledIndices = samplePointCloud(sceneKdtree, sampleStep, &indicesOfSampleScene);
+    // if (sampledScene.normal.empty())
+    //     sampledScene.normal = estimateNormal(sampledScene, scene);
     t1.release();
-    Timer  t3("scene sample2");
-    KDTree kdtree(sampledScene.point, 10, {sampledScene.box.min, sampledScene.box.max});
-    float  keySampleStep = sqrtf(1.f / keyPointFraction) * sampleStep;
-    auto   keypoint      = samplePointCloud(sampledScene, keySampleStep, &kdtree);
+    Timer t3("scene sample2");
+    sceneKdtree.reduce(indicesOfSampleScene);
+    float keySampleStep = sqrtf(1.f / keyPointFraction) * sampleStep;
+    auto  keypoint      = samplePointCloud(sceneKdtree, keySampleStep);
     t3.release();
     std::cout << "scene sample step:" << sampleStep << "\n"
-              << "scene sampled point size:" << sampledScene.point.size() << "\n"
+              << "scene sampled point size:" << sampledIndices.size() << "\n"
               << "scene keypoint sample step:" << keySampleStep << "\n"
               << "scene keypoint point size:" << keypoint.size() << std::endl;
 
@@ -227,8 +228,8 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         poseRefScoringDist = param.poseRefScoringDistAbs;
 
     if (matchResult) {
-        matchResult->keyPoint     = extraIndices(sampledScene, keypoint);
-        matchResult->sampledScene = sampledScene;
+        matchResult->keyPoint     = extraIndices(scene, keypoint);
+        matchResult->sampledScene = extraIndices(scene, sampledIndices);
     }
 
     Timer              t2("scene ppf");
@@ -237,13 +238,13 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
 #pragma omp parallel for
     for (int count = 0; count < keypoint.size(); count++) {
         auto  pointIndex = keypoint[ count ];
-        auto &p1         = sampledScene.point[ pointIndex ];
-        auto &n1         = sampledScene.normal[ pointIndex ];
+        auto &p1         = scene.point[ pointIndex ];
+        auto &n1         = scene.normal[ pointIndex ];
 
         //[3] vote
-        std::vector<std::pair<std::size_t, float>> indices;
-        auto searched = kdtree.index->radiusSearch(&p1[ 0 ], squaredDiameter, indices,
-                                                   nanoflann::SearchParams());
+        std::vector<std::pair<int, float>> indices;
+        auto searched = sceneKdtree.index->radiusSearch(&p1[ 0 ], squaredDiameter, indices,
+                                                        nanoflann::SearchParams());
         if (searched < voteThreshold)
             continue;
 
@@ -256,8 +257,8 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         vectorF nz(rows);
         for (std::size_t i = 0; i < rows; i++) {
             pointIndex = indices[ i + 1 ].first;
-            auto &p    = sampledScene.point[ pointIndex ];
-            auto &n    = sampledScene.normal[ pointIndex ];
+            auto &p    = scene.point[ pointIndex ];
+            auto &n    = scene.normal[ pointIndex ];
             px[ i ]    = p.x();
             py[ i ]    = p.y();
             pz[ i ]    = p.z();
@@ -352,14 +353,11 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     ICP denseIcp(ConvergenceCriteria(param.poseRefNumSteps, poseRefDistThreshold,
                                      poseRefScoringDist, reSampleStep * 0.5, reSampleStep));
 
-    PointCloud              reSampledScene;
-    std::unique_ptr<KDTree> reSampledKdtree;
+    std::vector<int> indicesOfSampleScene2;
     if (param.densePoseRefinement) {
         Timer t("icp prepare");
-        reSampledScene  = extraIndices(scene, samplePointCloud(scene, reSampleStep, &sceneKdtree));
-        reSampledKdtree = std::make_unique<KDTree>(
-            reSampledScene.point, 10,
-            std::vector<Eigen::Vector3f>{reSampledScene.box.min, reSampledScene.box.max});
+        sceneKdtree.restore();
+        auto indices = samplePointCloud(sceneKdtree, reSampleStep, &indicesOfSampleScene2);
     }
 
     Timer t4("icp");
@@ -373,7 +371,9 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
             continue;
 
         if (param.sparsePoseRefinement) {
-            auto refined = sparseIcp.regist(impl_->sampledModel, sampledScene, kdtree, pose);
+            sceneKdtree.restore();
+            sceneKdtree.reduce(indicesOfSampleScene);
+            auto refined = sparseIcp.regist(impl_->sampledModel, scene, sceneKdtree, pose);
             if (!refined.converged)
                 continue;
 
@@ -386,8 +386,9 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         }
 
         if (param.sparsePoseRefinement && param.densePoseRefinement) {
-            auto refined =
-                denseIcp.regist(impl_->reSampledModel, reSampledScene, *reSampledKdtree, pose);
+            sceneKdtree.restore();
+            sceneKdtree.reduce(indicesOfSampleScene2);
+            auto refined = denseIcp.regist(impl_->reSampledModel, scene, sceneKdtree, pose);
             if (!refined.converged)
                 continue;
 

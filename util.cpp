@@ -13,42 +13,36 @@
 
 namespace ppf {
 
-std::vector<std::size_t> samplePointCloud(const ppf::PointCloud &pc, float sampleStep,
-                                          KDTree *tree) {
-    KDTree *kdtree     = tree;
-    bool    needDelete = false;
-    if (!kdtree) {
-        kdtree     = new KDTree(pc.point);
-        needDelete = true;
-    }
+std::vector<std::size_t> samplePointCloud(const KDTree &tree, float sampleStep,
+                                          std::vector<int> *indicesOfIndices) {
 
-    auto              size = pc.point.size();
-    std::vector<bool> keep(size, true);
-    auto              radius = sampleStep * sampleStep;
+    auto                     size = tree.index->vAcc.size();
+    std::vector<bool>        keep(size, true);
+    auto                     radius = sampleStep * sampleStep;
+    std::vector<std::size_t> result;
+    if (indicesOfIndices)
+        indicesOfIndices->resize(size, nanoflann::INVALID_INDEX);
 
     for (std::size_t i = 0; i < size; i++) {
-        if (!keep[ i ])
+        auto index = tree.index->vAcc[ i ];
+        if (index == nanoflann::INVALID_INDEX) {
+            keep[ i ] = false;
+            continue;
+        }
+
+        if (!keep[ index ])
             continue;
 
-        auto                                      &point = pc.point[ i ];
-        std::vector<std::pair<std::size_t, float>> indices;
-        kdtree->index->radiusSearch(&point[ 0 ], radius, indices,
-                                    nanoflann::SearchParams(32, 0, false));
+        result.push_back(index);
+        if (indicesOfIndices)
+            (*indicesOfIndices)[ i ] = index;
 
+        auto                                  &point = tree.m_data[ index ];
+        std::vector<std::pair<int, float>>     indices;
+        nanoflann::RadiusResultSet<float, int> resultSet(radius, indices);
+        tree.index->findNeighbors(resultSet, &point[ 0 ], nanoflann::SearchParams(32, 0, false));
         for (auto &[ idx, dist ] : indices)
             keep[ idx ] = false;
-        keep[ i ] = true;
-    }
-
-    if (needDelete)
-        delete kdtree;
-
-    std::vector<std::size_t> result;
-    for (std::size_t i = 0; i < size; i++) {
-        if (!keep[ i ])
-            continue;
-
-        result.push_back(i);
     }
 
     return result;
