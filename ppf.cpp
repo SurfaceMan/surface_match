@@ -109,6 +109,12 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
     if (impl_->reSampledModel.normal.empty())
         impl_->reSampledModel.normal = estimateNormal(impl_->reSampledModel, model);
 
+    {
+        Timer t("model normalize normal");
+        normalizeNormal(sampledModel);
+        normalizeNormal(impl_->reSampledModel);
+    }
+
     Timer t3("model ppf");
     //[2] create hash table
     auto    size = sampledModel.size();
@@ -206,6 +212,11 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
               << "scene sampled point size:" << sampledIndices.size() << "\n"
               << "scene keypoint sample step:" << keySampleStep << "\n"
               << "scene keypoint point size:" << keypoint.size() << std::endl;
+
+    {
+        Timer t("scene normalize normal");
+        normalizeNormal(scene);
+    }
 
     //[2.3] data from param
     float voteThreshold  = refNum * param.voteThresholdFraction;
