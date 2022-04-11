@@ -160,7 +160,7 @@ void estimateNormal(ppf::PointCloud &pc, const std::vector<std::size_t> &indices
         eig.computeDirect(cov);
         Eigen::Vector3f eval   = eig.eigenvalues();
         int             minInd = 0;
-        eval.minCoeff(&minInd);
+        eval.cwiseAbs().minCoeff(&minInd);
         normal = eig.eigenvectors().col(minInd); // is already normalized
         if (normal(2) > 0)
             normal = -normal; // flip towards camera
