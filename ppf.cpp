@@ -66,7 +66,9 @@ Detector::Detector()
 Detector::~Detector() {
 }
 
-void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, TrainParam param) {
+void Detector::trainModel(const ppf::PointCloud &model_, float samplingDistanceRel,
+                          TrainParam param) {
+    auto model = model_;
     //[1] check input date
     if (samplingDistanceRel > 1 || samplingDistanceRel < 0)
         throw std::range_error("Invalid Input: samplingDistanceRel range mismatch in trainModel");
@@ -83,6 +85,7 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
     float reSampleStep = modelDiameter * param.poseRefRelSamplingDistance;
     float distanceStep = modelDiameter * param.featDistanceStepRel;
     float angleStep    = M_2PI / (float)param.featAngleResolution;
+    bool  hasNormal    = model.hasNormal();
 
     impl_                      = std::make_unique<IMPL>();
     impl_->samplingDistanceRel = samplingDistanceRel;
@@ -92,28 +95,29 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
     KDTree kdtree(model.point, 10, {model.box.min, model.box.max});
     t.release();
     Timer t1("model sample1");
-    impl_->sampledModel = extraIndices(model, samplePointCloud(kdtree, sampleStep));
+    auto  indices1 = samplePointCloud(kdtree, sampleStep);
     t1.release();
     Timer t2("model sample2");
-    impl_->reSampledModel = extraIndices(model, samplePointCloud(kdtree, reSampleStep));
+    auto  indices2 = samplePointCloud(kdtree, reSampleStep);
     t2.release();
 
     std::cout << "model sample step:" << sampleStep << "\n"
-              << "model sampled point size:" << impl_->sampledModel.point.size() << "\n"
+              << "model sampled point size:" << indices1.size() << "\n"
               << "model resampled step:" << reSampleStep << "\n"
-              << "model resampled point size:" << impl_->reSampledModel.point.size() << std::endl;
+              << "model resampled point size:" << indices2.size() << std::endl;
 
-    auto &sampledModel = impl_->sampledModel;
-    if (sampledModel.normal.empty())
-        sampledModel.normal = estimateNormal(sampledModel, model);
-    if (impl_->reSampledModel.normal.empty())
-        impl_->reSampledModel.normal = estimateNormal(impl_->reSampledModel, model);
-
-    {
+    if (!hasNormal) {
+        Timer t("model compute normal");
+        estimateNormal(model, indices1, kdtree, 2.3);
+        estimateNormal(model, indices2, kdtree, 2.3);
+    } else {
         Timer t("model normalize normal");
-        normalizeNormal(sampledModel);
-        normalizeNormal(impl_->reSampledModel);
+        normalizeNormal(model);
     }
+
+    impl_->sampledModel   = extraIndices(model, indices1);
+    impl_->reSampledModel = extraIndices(model, indices2);
+    auto &sampledModel    = impl_->sampledModel;
 
     Timer t3("model ppf");
     //[2] create hash table
@@ -141,11 +145,14 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
         auto &p1 = sampledModel.point[ i ];
         auto &n1 = sampledModel.normal[ i ];
 
+        if (n1.hasNaN())
+            continue;
+
         auto ppf   = computePPF(p1, n1, px, py, pz, nx, ny, nz, angleStep, distanceStep);
         auto rt    = transformRT(p1, n1);
         auto alpha = computeAlpha(rt, px, py, pz);
         for (int j = 0; j < size; j++) {
-            if (i == j)
+            if (i == j || isnan(alpha[ j ]))
                 continue;
 #pragma omp critical
             { hashTable[ ppf[ j ] ].emplace_back(i, alpha[ j ], 1); }
@@ -156,10 +163,11 @@ void Detector::trainModel(ppf::PointCloud &model, float samplingDistanceRel, Tra
     impl_->hashTable = std::move(hashTable);
 }
 
-void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &poses,
+void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matrix4f> &poses,
                           std::vector<float> &scores, float samplingDistanceRel,
                           float keyPointFraction, float minScore, MatchParam param,
                           MatchResult *matchResult) {
+    auto scene = scene_;
     //[1] check input date
     if (!impl_)
         throw std::runtime_error("No trained model in matchScene");
@@ -191,6 +199,7 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     int   maxAngleIndex   = angleNum - 1;
     float squaredDiameter = modelDiameter * modelDiameter;
     float reSampleStep    = modelDiameter * impl_->param.poseRefRelSamplingDistance;
+    bool  hasNormal       = scene.hasNormal();
 
     //[2.2] data from keyPointFraction/samplingDistanceRel
     Timer  t("scene kdtree");
@@ -200,8 +209,13 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
     float            sampleStep = modelDiameter * samplingDistanceRel;
     std::vector<int> indicesOfSampleScene;
     auto sampledIndices = samplePointCloud(sceneKdtree, sampleStep, &indicesOfSampleScene);
-    // if (sampledScene.normal.empty())
-    //     sampledScene.normal = estimateNormal(sampledScene, scene);
+    if (!hasNormal) {
+        Timer t("scene compute normal");
+        estimateNormal(scene, sampledIndices, sceneKdtree, 2.3);
+    } else {
+        Timer t("scene normalize normal");
+        normalizeNormal(scene);
+    }
     t1.release();
     Timer t3("scene sample2");
     sceneKdtree.reduce(indicesOfSampleScene);
@@ -212,11 +226,6 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
               << "scene sampled point size:" << sampledIndices.size() << "\n"
               << "scene keypoint sample step:" << keySampleStep << "\n"
               << "scene keypoint point size:" << keypoint.size() << std::endl;
-
-    {
-        Timer t("scene normalize normal");
-        normalizeNormal(scene);
-    }
 
     //[2.3] data from param
     float voteThreshold  = refNum * param.voteThresholdFraction;
@@ -252,6 +261,9 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         auto &p1         = scene.point[ pointIndex ];
         auto &n1         = scene.normal[ pointIndex ];
 
+        if (n1.hasNaN())
+            continue;
+
         //[3] vote
         std::vector<std::pair<int, float>> indices;
         auto searched = sceneKdtree.index->radiusSearch(&p1[ 0 ], squaredDiameter, indices,
@@ -285,7 +297,7 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         for (std::size_t j = 1; j < indices.size(); j++) {
             float alphaScene = alpha[ j - 1 ];
             auto  hash       = ppf[ j - 1 ];
-            if (hashTable.find(hash) == hashTable.end())
+            if (hashTable.find(hash) == hashTable.end() || isnan(alphaScene))
                 continue;
 
             auto &nodeList = hashTable[ hash ];
@@ -369,6 +381,8 @@ void Detector::matchScene(ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &
         Timer t("icp prepare");
         sceneKdtree.restore();
         auto indices = samplePointCloud(sceneKdtree, reSampleStep, &indicesOfSampleScene2);
+        if (!hasNormal)
+            estimateNormal(scene, indices, sceneKdtree, 2.3);
     }
 
     Timer t4("icp");

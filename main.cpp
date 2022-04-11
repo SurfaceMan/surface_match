@@ -9,6 +9,9 @@ int main(int argc, char *argv[]) {
 
     auto model = ppf::loadText(argv[ 1 ]);
     auto scene = ppf::loadText(argv[ 2 ]);
+    auto tmp   = model;
+    model.normal.clear();
+    scene.normal.clear();
 
     ppf::Detector detector;
     {
@@ -26,11 +29,10 @@ int main(int argc, char *argv[]) {
     }
 
     for (int i = 0; i < pose.size(); i++) {
-        auto pc = ppf::transformPointCloud(model, pose[ i ]);
-        ppf::saveText(std::string("out") + std::to_string(i) + ".txt", pc);
-
         std::cout << pose[ i ] << std::endl;
         std::cout << score[ i ] << std::endl;
+        auto pc = ppf::transformPointCloud(tmp, pose[ i ]);
+        ppf::saveText(std::string("out") + std::to_string(i) + ".txt", pc);
     }
 
     ppf::saveText("sampledScene.txt", result.sampledScene);
@@ -68,5 +70,22 @@ int main2(int argc, char *argv[]) {
         ppf::saveText("out2.txt", pct);
     }
 
+    return 0;
+}
+
+int main3(int argc, char *argv[]) {
+    auto model = ppf::loadText(argv[ 1 ]);
+    std::cout << "point size:" << model.point.size() << std::endl;
+    model.normal.clear();
+    ppf::KDTree kdtree(model.point);
+    {
+        ppf::Timer               t("compute normal");
+        std::vector<std::size_t> indices(model.point.size());
+        for (int i = 0; i < indices.size(); i++)
+            indices[ i ] = i;
+        ppf::estimateNormal(model, indices, kdtree, 2.6f, true);
+    }
+
+    ppf::saveText("normal.txt", model);
     return 0;
 }

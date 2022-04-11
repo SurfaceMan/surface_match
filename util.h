@@ -30,9 +30,8 @@ BoundingBox computeBoundingBox(const ppf::PointCloud &pc);
 PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f &pose,
                                bool useNormal = true);
 
-std::vector<Eigen::Vector3f> estimateNormal(const ppf::PointCloud &pc);
-
-std::vector<Eigen::Vector3f> estimateNormal(const ppf::PointCloud &pc, const ppf::PointCloud &ref);
+void estimateNormal(ppf::PointCloud &pc, const std::vector<std::size_t> &indices,
+                    const KDTree &kdtree, float radius, bool invert = false);
 
 Eigen::Matrix4f transformRT(const Eigen::Vector3f &p, const Eigen::Vector3f &n);
 

@@ -100,7 +100,7 @@ BoundingBox computeBoundingBox(const ppf::PointCloud &pc) {
 PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f &pose,
                                bool useNormal) {
     auto size     = pc.size();
-    auto doNormal = pc.hasNormal() & useNormal;
+    auto doNormal = pc.hasNormal() && useNormal;
 
     PointCloud result;
     result.point.resize(size);
@@ -121,12 +121,53 @@ PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f 
     return result;
 }
 
-std::vector<Eigen::Vector3f> estimateNormal(const ppf::PointCloud &pc) {
-    return {};
-}
+void estimateNormal(ppf::PointCloud &pc, const std::vector<std::size_t> &indices,
+                    const KDTree &tree, float radius, bool invert) {
+    if (!pc.hasNormal())
+        pc.normal.resize(pc.point.size(), Eigen::Vector3f(NAN, NAN, NAN));
 
-std::vector<Eigen::Vector3f> estimateNormal(const ppf::PointCloud &pc, const ppf::PointCloud &ref) {
-    return {};
+    auto radius2 = radius * radius;
+
+    auto size = indices.size();
+#pragma omp parallel for
+    for (int i = 0; i < size; i++) {
+        auto  idx    = indices[ i ];
+        auto &point  = pc.point[ idx ];
+        auto &normal = pc.normal[ idx ];
+        if (normal.allFinite())
+            continue;
+
+        // neighbour
+        std::vector<std::pair<int, float>>     indices;
+        nanoflann::RadiusResultSet<float, int> resultSet(radius2, indices);
+        tree.index->findNeighbors(resultSet, &point[ 0 ], nanoflann::SearchParams(32, 0, false));
+        if (indices.size() < 3)
+            continue;
+
+        std::vector<Eigen::Vector3f> neighbours(indices.size() + 1);
+        for (int j = 0; j < indices.size(); j++)
+            neighbours[ j ] = tree.m_data[ indices[ j ].first ];
+        neighbours[ indices.size() ] = point;
+
+        // pca
+        Eigen::Map<const Eigen::Matrix3Xf> P(neighbours[ 0 ].data(), 3, neighbours.size());
+        Eigen::Vector3f                    centroid = P.rowwise().mean();
+        Eigen::Matrix3Xf                   centered = P.colwise() - centroid;
+        Eigen::Matrix3f                    cov      = centered * centered.transpose();
+
+        // eigvecs sorted in increasing order of eigvals
+        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig;
+        eig.computeDirect(cov);
+        Eigen::Vector3f eval   = eig.eigenvalues();
+        int             minInd = 0;
+        eval.minCoeff(&minInd);
+        normal = eig.eigenvectors().col(minInd); // is already normalized
+        if (normal(2) > 0)
+            normal = -normal; // flip towards camera
+
+        if (invert)
+            normal = -normal;
+    }
 }
 
 Eigen::Matrix4f transformRT(const Eigen::Vector3f &p, const Eigen::Vector3f &n) {
