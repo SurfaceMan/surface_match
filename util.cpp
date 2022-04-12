@@ -121,30 +121,26 @@ PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f 
     return result;
 }
 
-void computeNormal(ppf::PointCloud &pc, std::size_t &idx, const KDTree &tree, float radius,
-                   std::vector<std::size_t> *neighbour = nullptr) {
+void computeNormal(ppf::PointCloud &pc, int idx, const KDTree &tree, int k,
+                   std::vector<int> *neighbour = nullptr) {
     auto &point  = pc.point[ idx ];
     auto &normal = pc.normal[ idx ];
     if (normal.allFinite())
         return;
 
     // neighbour
-    std::vector<std::pair<int, float>>     indices;
-    nanoflann::RadiusResultSet<float, int> resultSet(radius * radius, indices);
-    tree.index->findNeighbors(resultSet, &point[ 0 ], nanoflann::SearchParams(32, 0, false));
+    std::vector<int>   indices(k);
+    std::vector<float> dists(k);
+    tree.index->knnSearch(&point[ 0 ], k, indices.data(), dists.data());
     if (indices.size() < 3)
         return;
 
-    std::vector<Eigen::Vector3f> neighbours(indices.size() + 1);
+    std::vector<Eigen::Vector3f> neighbours(indices.size());
     for (int j = 0; j < indices.size(); j++)
-        neighbours[ j ] = tree.m_data[ indices[ j ].first ];
-    neighbours[ indices.size() ] = point;
+        neighbours[ j ] = tree.m_data[ indices[ j ] ];
 
-    if (neighbour) {
-        neighbour->resize(indices.size());
-        for (int i = 0; i < indices.size(); i++)
-            (*neighbour)[ i ] = indices[ i ].first;
-    }
+    if (neighbour)
+        (*neighbour) = indices;
 
     // pca
     Eigen::Map<const Eigen::Matrix3Xf> P(neighbours[ 0 ].data(), 3, neighbours.size());
@@ -162,22 +158,28 @@ void computeNormal(ppf::PointCloud &pc, std::size_t &idx, const KDTree &tree, fl
 }
 
 void estimateNormal(ppf::PointCloud &pc, const std::vector<std::size_t> &indices,
-                    const KDTree &tree, float radius, bool invert, bool smooth) {
+                    const KDTree &tree, int k, bool smooth) {
     if (!pc.hasNormal())
         pc.normal.resize(pc.point.size(), Eigen::Vector3f(NAN, NAN, NAN));
+    if (k < 3)
+        k = 3;
 
     auto size = indices.size();
 #pragma omp parallel for
     for (int i = 0; i < size; i++) {
         auto  idx    = indices[ i ];
         auto &normal = pc.normal[ idx ];
+        auto &point  = pc.point[ idx ];
 
-        std::vector<std::size_t> neighbor;
-        computeNormal(pc, idx, tree, radius, &neighbor);
+        std::vector<int> neighbor;
+        computeNormal(pc, idx, tree, k, &neighbor);
+
+        if (neighbor.empty())
+            continue;
 
         if (smooth) {
             for (auto index : neighbor)
-                computeNormal(pc, index, tree, radius);
+                computeNormal(pc, index, tree, k);
 
             Eigen::Vector3f nSum(0, 0, 0);
             for (auto index : neighbor) {
@@ -190,12 +192,18 @@ void estimateNormal(ppf::PointCloud &pc, const std::vector<std::size_t> &indices
 
             normal = nSum.normalized();
         }
+    }
 
-        if (normal(2) > 0)
-            normal = -normal; // flip towards camera
-
-        if (invert)
-            normal = -normal;
+    if (pc.viewPoint.allFinite()) {
+#pragma omp parallel for
+        for (int i = 0; i < size; i++) {
+            auto  idx    = indices[ i ];
+            auto &normal = pc.normal[ idx ];
+            auto &point  = pc.point[ idx ];
+            if (normal.dot(pc.viewPoint - point) < 0.f)
+                normal = -normal;
+            continue;
+        }
     }
 }
 

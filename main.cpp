@@ -7,10 +7,11 @@
 int main(int argc, char *argv[]) {
     std::cout << "float batch size:" << xsimd::simd_type<float>::size << std::endl;
 
-    auto model = ppf::loadText(argv[ 1 ]);
-    auto scene = ppf::loadText(argv[ 2 ]);
-    auto tmp   = model;
-    model.normal.clear();
+    auto model      = ppf::loadText(argv[ 1 ]);
+    auto scene      = ppf::loadText(argv[ 2 ]);
+    scene.viewPoint = {620, 100, 500};
+    auto tmp        = model;
+    // model.normal.clear();
     scene.normal.clear();
 
     ppf::Detector detector;
@@ -74,7 +75,8 @@ int main2(int argc, char *argv[]) {
 }
 
 int main3(int argc, char *argv[]) {
-    auto model = ppf::loadText(argv[ 1 ]);
+    auto model      = ppf::loadText(argv[ 1 ]);
+    model.viewPoint = {620, 100, 500};
     std::cout << "point size:" << model.point.size() << std::endl;
     model.normal.clear();
     ppf::KDTree kdtree(model.point);
@@ -83,7 +85,8 @@ int main3(int argc, char *argv[]) {
         std::vector<std::size_t> indices(model.point.size());
         for (int i = 0; i < indices.size(); i++)
             indices[ i ] = i;
-        ppf::estimateNormal(model, indices, kdtree, 2.6f, true);
+        int size = indices.size();
+        ppf::estimateNormal(model, indices, kdtree, 10, true);
     }
 
     ppf::saveText("normal.txt", model);

@@ -68,10 +68,12 @@ void Pose::updatePoseQuat(const Eigen::Quaternionf &q_) {
 }
 
 TrainParam::TrainParam(float featDistanceStepRel_, int featAngleResolution_,
-                       float poseRefRelSamplingDistance_)
+                       float poseRefRelSamplingDistance_, int knnNormal_, bool smoothNormal_)
     : featDistanceStepRel(featDistanceStepRel_)
     , featAngleResolution(featAngleResolution_)
-    , poseRefRelSamplingDistance(poseRefRelSamplingDistance_) {
+    , poseRefRelSamplingDistance(poseRefRelSamplingDistance_)
+    , knnNormal(knnNormal_)
+    , smoothNormal(smoothNormal_) {
 
     if (featDistanceStepRel > 1 || featDistanceStepRel <= 0)
         throw std::range_error("Invalid Input: featDistanceStepRel range mismatch in TrainParam()");
@@ -84,13 +86,15 @@ TrainParam::TrainParam(float featDistanceStepRel_, int featAngleResolution_,
             "Invalid Input: poseRefRelSamplingDistance range mismatch in TrainParam()");
 }
 
-MatchParam::MatchParam(float voteThresholdFraction_, int numMatches_, float maxOverlapDistRel_,
-                       float maxOverlapDistAbs_, bool sparsePoseRefinement_,
-                       bool densePoseRefinement_, int poseRefNumSteps_,
+MatchParam::MatchParam(float voteThresholdFraction_, int numMatches_, int knnNormal_,
+                       bool smoothNormal_, float maxOverlapDistRel_, float maxOverlapDistAbs_,
+                       bool sparsePoseRefinement_, bool densePoseRefinement_, int poseRefNumSteps_,
                        float poseRefDistThresholdRel_, float poseRefDistThresholdAbs_,
                        float poseRefScoringDistRel_, float poseRefScoringDistAbs_)
     : voteThresholdFraction(voteThresholdFraction_)
     , numMatches(numMatches_)
+    , knnNormal(knnNormal_)
+    , smoothNormal(smoothNormal_)
     , maxOverlapDistRel(maxOverlapDistRel_)
     , maxOverlapDistAbs(maxOverlapDistAbs_)
     , sparsePoseRefinement(sparsePoseRefinement_)

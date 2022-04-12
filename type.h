@@ -39,6 +39,7 @@ public:
     std::vector<Eigen::Vector3f> point;
     std::vector<Eigen::Vector3f> normal;
     BoundingBox                  box;
+    Eigen::Vector3f              viewPoint = Eigen::Vector3f(NAN, NAN, NAN);
 
     bool        hasNormal() const;
     std::size_t size() const;
@@ -85,8 +86,21 @@ public:
      */
     float poseRefRelSamplingDistance;
 
+    /**
+     * @brief Set the count of nearest neighbors to estimate normal
+     *
+     */
+    int knnNormal;
+
+    /**
+     * @brief Enables or disables smooth normal by neighbors
+     *
+     */
+    bool smoothNormal;
+
     explicit TrainParam(float featDistanceStepRel = 0.04f, int featAngleResolution = 30,
-                        float poseRefRelSamplingDistance = 0.01f);
+                        float poseRefRelSamplingDistance = 0.01f, int knnNormal = 10,
+                        bool smoothNormal = true);
 };
 
 /**
@@ -107,6 +121,18 @@ public:
      *
      */
     int numMatches;
+
+    /**
+     * @brief Set the count of nearest neighbors to estimate normal
+     *
+     */
+    int knnNormal;
+
+    /**
+     * @brief Enables or disables smooth normal by neighbors
+     *
+     */
+    bool smoothNormal;
 
     /**
      * @brief The minimum distance between the centers of the axis-aligned bounding boxes of two
@@ -172,12 +198,12 @@ public:
      */
     float poseRefScoringDistAbs;
 
-    explicit MatchParam(float voteThresholdFraction = 0.2f, int numMatches = 1,
-                        float maxOverlapDistRel = 0.5f, float maxOverlapDistAbs = 0,
-                        bool sparsePoseRefinement = true, bool densePoseRefinement = true,
-                        int poseRefNumSteps = 5, float poseRefDistThresholdRel = 0.1f,
-                        float poseRefDistThresholdAbs = 0, float poseRefScoringDistRel = 0.01f,
-                        float poseRefScoringDistAbs = 0);
+    explicit MatchParam(float voteThresholdFraction = 0.2f, int numMatches = 1, int knnNormal = 10,
+                        bool smoothNormal = true, float maxOverlapDistRel = 0.5f,
+                        float maxOverlapDistAbs = 0, bool sparsePoseRefinement = true,
+                        bool densePoseRefinement = true, int poseRefNumSteps = 5,
+                        float poseRefDistThresholdRel = 0.1f, float poseRefDistThresholdAbs = 0,
+                        float poseRefScoringDistRel = 0.01f, float poseRefScoringDistAbs = 0);
 };
 
 struct MatchResult {
