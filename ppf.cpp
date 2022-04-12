@@ -382,7 +382,7 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
         sceneKdtree.restore();
         auto indices = samplePointCloud(sceneKdtree, reSampleStep, &indicesOfSampleScene2);
         if (!hasNormal)
-            estimateNormal(scene, indices, sceneKdtree, param.knnNormal, param.smoothNormal);
+            estimateNormal(scene, indices, sceneKdtree, param.knnNormal, false);
     }
 
     Timer t4("icp");
