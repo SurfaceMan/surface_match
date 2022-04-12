@@ -31,7 +31,7 @@ PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f 
                                bool useNormal = true);
 
 void estimateNormal(ppf::PointCloud &pc, const std::vector<std::size_t> &indices,
-                    const KDTree &kdtree, float radius, bool invert = false);
+                    const KDTree &kdtree, float radius, bool invert = false, bool smooth = true);
 
 Eigen::Matrix4f transformRT(const Eigen::Vector3f &p, const Eigen::Vector3f &n);
 
