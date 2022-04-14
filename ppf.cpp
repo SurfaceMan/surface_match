@@ -76,8 +76,13 @@ void Detector::trainModel(const ppf::PointCloud &model_, float samplingDistanceR
     if (model.point.empty())
         throw std::runtime_error("Invalid Input: empty model in trainModel");
 
+    // remove nan
+    Timer t0("model remove nan");
+    auto  validIndices = removeNan(model, model.hasNormal());
+    t0.release();
+
     if (model.box.diameter() == 0)
-        model.box = computeBoundingBox(model);
+        model.box = computeBoundingBox(model, validIndices);
 
     float modelDiameter = model.box.diameter();
 
@@ -92,7 +97,7 @@ void Detector::trainModel(const ppf::PointCloud &model_, float samplingDistanceR
     impl_->param               = param;
 
     Timer  t("model kdtree");
-    KDTree kdtree(model.point, 10, {model.box.min, model.box.max});
+    KDTree kdtree(model.point, 10, {model.box.min, model.box.max}, validIndices);
     t.release();
     Timer t1("model sample1");
     auto  indices1 = samplePointCloud(kdtree, sampleStep);
@@ -184,8 +189,16 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
     if (scene.point.empty())
         throw std::runtime_error("Invalid Input: empty scene in matchScene");
 
+    // remove nan
+    Timer t0("scene remove nan");
+    auto  validIndices = removeNan(scene, scene.hasNormal());
+    t0.release();
+
     if (scene.box.diameter() == 0)
-        scene.box = computeBoundingBox(scene);
+        scene.box = computeBoundingBox(scene, validIndices);
+
+    std::cout << "scene box:" << scene.box.min.transpose() << "<--->" << scene.box.max.transpose()
+              << std::endl;
 
     //[2] prepare data
     //[2.1] data from IMPL
@@ -203,7 +216,7 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
 
     //[2.2] data from keyPointFraction/samplingDistanceRel
     Timer  t("scene kdtree");
-    KDTree sceneKdtree(scene.point, 10, {scene.box.min, scene.box.max});
+    KDTree sceneKdtree(scene.point, 10, {scene.box.min, scene.box.max}, validIndices);
     t.release();
     Timer            t1("scene sample1");
     float            sampleStep = modelDiameter * samplingDistanceRel;

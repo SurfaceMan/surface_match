@@ -1155,6 +1155,11 @@ public:
      * dataset, and re-generate if size has changed. */
     void init_vind() {
         // Create a permutable array of indices to the input vectors.
+        if (!dataset.kdtree_init_indices().empty()) {
+            BaseClassRef::vAcc = dataset.kdtree_init_indices();
+            return;
+        }
+
         BaseClassRef::m_size = dataset.kdtree_get_point_count();
         if (BaseClassRef::vAcc.size() != BaseClassRef::m_size)
             BaseClassRef::vAcc.resize(BaseClassRef::m_size);

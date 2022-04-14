@@ -13,6 +13,27 @@
 
 namespace ppf {
 
+std::vector<int> removeNan(const ppf::PointCloud &pc, bool checkNormal) {
+    auto              size = pc.size();
+    std::vector<bool> keep(size, true);
+    checkNormal = checkNormal && pc.hasNormal();
+
+#pragma omp parallel for
+    for (int i = 0; i < size; i++) {
+        if (!pc.point[ i ].allFinite() || (checkNormal && !pc.normal[ i ].allFinite()))
+            keep[ i ] = false;
+    }
+
+    std::vector<int> result;
+    result.reserve(size);
+    for (int i = 0; i < size; i++) {
+        if (keep[ i ])
+            result.push_back(i);
+    }
+
+    return result;
+}
+
 std::vector<std::size_t> samplePointCloud(const KDTree &tree, float sampleStep,
                                           std::vector<int> *indicesOfIndices) {
 
@@ -79,18 +100,31 @@ void normalizeNormal(ppf::PointCloud &pc) {
     }
 }
 
-BoundingBox computeBoundingBox(const ppf::PointCloud &pc) {
-    Eigen::Vector3f min = pc.point[ 0 ];
+BoundingBox computeBoundingBox(const ppf::PointCloud &pc, const std::vector<int> &validIndices) {
+    Eigen::Vector3f min = validIndices.empty() ? pc.point[ 0 ] : pc.point[ validIndices[ 0 ] ];
     Eigen::Vector3f max = min;
 
-// bounding box
+    // bounding box
+    if (validIndices.empty()) {
 #pragma omp parallel for
-    for (int dim = 0; dim < 3; dim++) {
-        for (auto &p : pc.point) {
-            if (p[ dim ] > max[ dim ])
-                max[ dim ] = p[ dim ];
-            else if (p[ dim ] < min[ dim ])
-                min[ dim ] = p[ dim ];
+        for (int dim = 0; dim < 3; dim++) {
+            for (auto &p : pc.point) {
+                if (p[ dim ] > max[ dim ])
+                    max[ dim ] = p[ dim ];
+                else if (p[ dim ] < min[ dim ])
+                    min[ dim ] = p[ dim ];
+            }
+        }
+    } else {
+#pragma omp parallel for
+        for (int dim = 0; dim < 3; dim++) {
+            for (auto idx : validIndices) {
+                auto &p = pc.point[ idx ];
+                if (p[ dim ] > max[ dim ])
+                    max[ dim ] = p[ dim ];
+                else if (p[ dim ] < min[ dim ])
+                    min[ dim ] = p[ dim ];
+            }
         }
     }
 

@@ -18,6 +18,8 @@ namespace ppf {
 using vectorF = std::vector<float, xsimd::aligned_allocator<float>>;
 using vectorI = std::vector<uint32_t, xsimd::aligned_allocator<uint32_t>>;
 
+std::vector<int> removeNan(const ppf::PointCloud &pc, bool checkNormal = false);
+
 std::vector<std::size_t> samplePointCloud(const KDTree &tree, float sampleStep,
                                           std::vector<int> *indicesOfIndices = nullptr);
 
@@ -25,7 +27,8 @@ PointCloud extraIndices(const ppf::PointCloud &pc, const std::vector<std::size_t
 
 void normalizeNormal(ppf::PointCloud &pc);
 
-BoundingBox computeBoundingBox(const ppf::PointCloud &pc);
+BoundingBox computeBoundingBox(const ppf::PointCloud  &pc,
+                               const std::vector<int> &validIndices = {});
 
 PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f &pose,
                                bool useNormal = true);

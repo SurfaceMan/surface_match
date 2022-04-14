@@ -63,9 +63,11 @@ struct KDTreeVectorOfVectorsAdaptor {
     /// Constructor: takes a const ref to the vector of vectors object with the
     /// data points
     KDTreeVectorOfVectorsAdaptor(const VectorOfVectorsType &mat, const int leaf_max_size = 10,
-                                 VectorOfVectorsType box = {})
+                                 const VectorOfVectorsType    &box          = {},
+                                 const std::vector<IndexType> &validIndices = {})
         : m_data(mat)
-        , m_box(box) {
+        , m_box(box)
+        , m_validIndices(validIndices) {
         assert(mat.size() != 0 && mat[ 0 ].size() != 0);
         const size_t dims = mat[ 0 ].size();
         if (DIM > 0 && static_cast<int>(dims) != DIM)
@@ -80,8 +82,9 @@ struct KDTreeVectorOfVectorsAdaptor {
         delete index;
     }
 
-    const VectorOfVectorsType &m_data;
-    const VectorOfVectorsType &m_box;
+    const VectorOfVectorsType    &m_data;
+    const VectorOfVectorsType    &m_box;
+    const std::vector<IndexType> &m_validIndices;
 
     std::vector<IndexType> vAccTmp;
 
@@ -110,9 +113,13 @@ struct KDTreeVectorOfVectorsAdaptor {
         return *this;
     }
 
+    const std::vector<IndexType> kdtree_init_indices() const {
+        return m_validIndices;
+    }
+
     // Must return the number of data points
     inline size_t kdtree_get_point_count() const {
-        return m_data.size();
+        return m_validIndices.empty() ? m_data.size() : m_validIndices.size();
     }
 
     // Returns the dim'th component of the idx'th point in the class:
