@@ -77,8 +77,7 @@ Eigen::Matrix4f minimizePointToPlaneMetric(
 }
 
 std::pair<std::vector<std::size_t>, std::vector<std::size_t>>
-    findCorresponds(const PointCloud &srcPC, const PointCloud &dstPC, const KDTree &kdtree,
-                    float rejectDist) {
+    findCorresponds(const PointCloud &srcPC, const KDTree &kdtree, float rejectDist) {
     std::vector<int>   indicies;
     std::vector<float> distances;
     findClosestPoint(kdtree, srcPC, indicies, distances);
@@ -130,7 +129,7 @@ struct IterResult {
 
 IterResult iteration(const PointCloud &srcPC, const PointCloud &dstPC, const KDTree &kdtree,
                      float rejectDist) {
-    auto modelScenePair = findCorresponds(srcPC, dstPC, kdtree, rejectDist);
+    auto modelScenePair = findCorresponds(srcPC, kdtree, rejectDist);
     auto size           = modelScenePair.first.size();
     if (size < 6)
         return IterResult{Eigen::Matrix4f::Identity(), size};
