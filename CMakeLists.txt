@@ -14,15 +14,18 @@ endif()
 set(EIGEN3_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/eigen)
 set(XSIMD_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/xsimd/include)
 set(KDTREE_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/kdtree)
+set(RPLY_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/rply/rply)
+set(RPLY_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/rply/rply/rply.c)
 
 add_executable(ppf  
-    main.cpp ppf.h ppf.cpp util.h util.cpp type.h type.cpp icp.h icp.cpp 
+    main.cpp ppf.h ppf.cpp util.h util.cpp type.h type.cpp icp.h icp.cpp filePLY.h filePLY.cpp ${RPLY_SOURCE}
 )
 
 target_include_directories(ppf PRIVATE 
     ${KDTREE_INCLUDE_DIRS}
     ${XSIMD_INCLUDE_DIRS}
     ${EIGEN3_INCLUDE_DIRS}
+    ${RPLY_INCLUDE_DIRS}
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 target_link_libraries(ppf PUBLIC OpenMP::OpenMP_CXX)

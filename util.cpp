@@ -351,34 +351,6 @@ std::vector<Pose> avgClusters(const std::vector<std::vector<Pose>> &clusters) {
     return avg;
 }
 
-PointCloud loadText(const std::string &filename) {
-    PointCloud      result;
-    Eigen::Vector3f p;
-    Eigen::Vector3f n;
-
-    FILE *file = fopen(filename.c_str(), "r");
-    while (!feof(file)) {
-        fscanf(file, "%f %f %f %f %f %f", &p.x(), &p.y(), &p.z(), &n.x(), &n.y(), &n.z());
-        result.point.push_back(p);
-        result.normal.push_back(n);
-    }
-    fclose(file);
-
-    result.box = computeBoundingBox(result);
-    return result;
-}
-
-void saveText(const std::string &filename, const PointCloud &pc) {
-    std::ofstream out(filename);
-    for (int i = 0; i < pc.point.size(); i++) {
-        auto &p = pc.point[ i ];
-        auto &n = pc.normal[ i ];
-        out << p.x() << '\t' << p.y() << '\t' << p.z() << '\t' << n.x() << '\t' << n.y() << '\t'
-            << n.z() << '\n';
-    }
-    out.close();
-}
-
 void findClosestPoint(const KDTree &kdtree, const PointCloud &srcPC, std::vector<int> &indices,
                       std::vector<float> &distances) {
 

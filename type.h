@@ -38,6 +38,7 @@ struct PointCloud {
 public:
     std::vector<Eigen::Vector3f> point;
     std::vector<Eigen::Vector3f> normal;
+    std::vector<Eigen::Vector3i> face;
     BoundingBox                  box;
     Eigen::Vector3f              viewPoint = Eigen::Vector3f(NAN, NAN, NAN);
 

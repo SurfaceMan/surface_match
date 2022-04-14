@@ -59,10 +59,6 @@ std::vector<Pose> sortPoses(std::vector<Pose> poseList);
 
 std::vector<Pose> avgClusters(const std::vector<std::vector<Pose>> &clusters);
 
-PointCloud loadText(const std::string &filename);
-
-void saveText(const std::string &filename, const PointCloud &pc);
-
 void findClosestPoint(const KDTree &kdtree, const PointCloud &srcPC, std::vector<int> &indices,
                       std::vector<float> &distances);
 
