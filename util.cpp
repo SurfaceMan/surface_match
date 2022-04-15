@@ -219,7 +219,8 @@ PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f 
             result.normal[ i ] = r * pc.normal[ i ];
     }
 
-    result.box = computeBoundingBox(result);
+    result.face = pc.face;
+    result.box  = computeBoundingBox(result);
     return result;
 }
 
