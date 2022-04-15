@@ -5,6 +5,7 @@
 
 #include <Eigen/Geometry>
 #include <map>
+#include <numeric>
 #include <set>
 #include <utility>
 
@@ -92,6 +93,16 @@ void Detector::trainModel(const ppf::PointCloud &model_, float samplingDistanceR
     float angleStep    = M_2PI / (float)param.featAngleResolution;
     bool  hasNormal    = model.hasNormal();
 
+    // mesh
+    if (!model.face.empty()) {
+        Timer t("sample mesh");
+        model = sampleMesh(model, reSampleStep / 4.);
+        t.release();
+        hasNormal = model.hasNormal();
+        validIndices.resize(model.size());
+        std::iota(validIndices.begin(), validIndices.end(), 0);
+    }
+
     impl_                      = std::make_unique<IMPL>();
     impl_->samplingDistanceRel = samplingDistanceRel;
     impl_->param               = param;
@@ -106,7 +117,8 @@ void Detector::trainModel(const ppf::PointCloud &model_, float samplingDistanceR
     auto  indices2 = samplePointCloud(kdtree, reSampleStep);
     t2.release();
 
-    std::cout << "model sample step:" << sampleStep << "\n"
+    std::cout << "model point size:" << model.size() << "\n"
+              << "model sample step:" << sampleStep << "\n"
               << "model sampled point size:" << indices1.size() << "\n"
               << "model resampled step:" << reSampleStep << "\n"
               << "model resampled point size:" << indices2.size() << std::endl;

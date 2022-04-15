@@ -4,14 +4,82 @@
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 #include <Eigen/StdVector>
-#include <fstream>
 
+#include <algorithm>
+#include <fstream>
 #include <iostream>
+#include <random>
 
 #define _USE_MATH_DEFINES
 #include <math.h>
 
 namespace ppf {
+
+PointCloud sampleMesh(const ppf::PointCloud &pc, float radius) {
+    if (pc.face.empty())
+        return {};
+
+    // compute normal /area
+    auto                         triangleSize = pc.face.size();
+    std::vector<float>           areas(triangleSize);
+    std::vector<Eigen::Vector3f> normals(triangleSize);
+    float                        area = 0;
+    for (int i = 0; i < triangleSize; i++) {
+        auto &face = pc.face[ i ];
+        auto &p0   = pc.point[ face[ 0 ] ];
+        auto &p1   = pc.point[ face[ 1 ] ];
+        auto &p2   = pc.point[ face[ 2 ] ];
+
+        auto            u = p1 - p0;
+        auto            v = p2 - p0;
+        Eigen::Vector3f k = u.cross(v);
+
+        areas[ i ]   = k.norm() / 2.f;
+        normals[ i ] = k.normalized();
+        area += areas[ i ];
+    }
+
+    // integral
+    areas[ 0 ] = areas[ 0 ] / area;
+    for (int i = 1; i < triangleSize; i++)
+        areas[ i ] = areas[ i ] / area + areas[ i - 1 ];
+
+    // number of point
+    int nPoints = area / (radius * radius);
+
+    //
+    std::random_device                    rd;
+    int                                   seed = rd();
+    std::mt19937                          mt(seed);
+    std::uniform_real_distribution<float> dist(0.0, 1.0);
+    PointCloud                            result;
+
+    result.point.resize(nPoints);
+    result.normal.resize(nPoints);
+    size_t pointIdx = 0;
+    for (int i = 0; i < triangleSize; i++) {
+        size_t n = size_t(std::round(areas[ i ] * nPoints));
+        while (pointIdx < n) {
+            auto r1 = dist(mt);
+            auto r2 = dist(mt);
+            auto a  = 1. - std::sqrt(r1);
+            auto b  = std::sqrt(r1) * (1. - r2);
+            auto c  = std::sqrt(r1) * r2;
+
+            auto &face                = pc.face[ i ];
+            auto &p0                  = pc.point[ face[ 0 ] ];
+            auto &p1                  = pc.point[ face[ 1 ] ];
+            auto &p2                  = pc.point[ face[ 2 ] ];
+            result.point[ pointIdx ]  = a * p0 + b * p1 + c * p2;
+            result.normal[ pointIdx ] = normals[ i ];
+
+            pointIdx++;
+        }
+    }
+
+    result.box = pc.box;
+    return result;
+}
 
 std::vector<int> removeNan(const ppf::PointCloud &pc, bool checkNormal) {
     auto              size = pc.size();

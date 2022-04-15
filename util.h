@@ -18,6 +18,8 @@ namespace ppf {
 using vectorF = std::vector<float, xsimd::aligned_allocator<float>>;
 using vectorI = std::vector<uint32_t, xsimd::aligned_allocator<uint32_t>>;
 
+PointCloud sampleMesh(const ppf::PointCloud &pc, float radius);
+
 std::vector<int> removeNan(const ppf::PointCloud &pc, bool checkNormal = false);
 
 std::vector<std::size_t> samplePointCloud(const KDTree &tree, float sampleStep,
