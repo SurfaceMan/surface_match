@@ -37,43 +37,88 @@ Eigen::Matrix3f xyz2Matrix(float rx, float ry, float rz) {
     return org;
 }
 
+void symmetric_rigid_matching(const Eigen::MatrixXf &P, const Eigen::MatrixXf &Q,
+                              const Eigen::MatrixXf &NP, const Eigen::MatrixXf &NQ,
+                              Eigen::Matrix3f &R, Eigen::RowVector3f &t) {
+
+    // normalize point sets
+    Eigen::RowVector3f Pmean = P.colwise().mean();
+    Eigen::RowVector3f Qmean = Q.colwise().mean();
+    Eigen::MatrixXf    Pbar  = P.rowwise() - Pmean;
+    Eigen::MatrixXf    Qbar  = Q.rowwise() - Qmean;
+
+    // sum of normals
+    Eigen::MatrixXf N = NP + NQ;
+
+    // compute A and b of linear system
+    int             num_points = P.rows();
+    Eigen::MatrixXf A          = Eigen::MatrixXf::Zero(6, 6);
+    Eigen::VectorXf b          = Eigen::VectorXf::Zero(6, 1);
+    for (int i = 0; i < num_points; ++i) {
+        Eigen::MatrixXf x_i = Eigen::MatrixXf(6, 1);
+        Eigen::Vector3f n_i = N.row(i);
+        Eigen::Vector3f p_i = Pbar.row(i);
+        Eigen::Vector3f q_i = Qbar.row(i);
+        double          b_i = (p_i - q_i).dot(n_i);
+        x_i << (p_i + q_i).cross(n_i), n_i;
+        A += x_i * x_i.transpose();
+        b += b_i * x_i;
+    }
+
+    // solve linear equation
+    Eigen::VectorXf u = A.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(-b);
+
+    Eigen::Vector3f a_tilda = u.head(3); // scaled rotation axis
+    Eigen::Vector3f t_tilda = u.tail(3); // scaled translation
+
+    // compute intermediate rotation
+    double          theta = atan(a_tilda.norm()); // rotation angle
+    Eigen::Vector3f a     = a_tilda.normalized(); // normalized rotation axis
+    Eigen::Matrix3f W;
+    W << 0, -a(2), a(1), a(2), 0, -a(0), -a(1), a(0), 0;
+    Eigen::Matrix3f intermediate_R =
+        Eigen::Matrix3f::Identity() + sin(theta) * W + (1 - cos(theta)) * (W * W);
+
+    // compose translations and rotations
+    Eigen::Vector3f t1 = -Pmean.transpose();
+    Eigen::Vector3f t2 = cos(theta) * t_tilda;
+    Eigen::Vector3f t3 = Qmean.transpose();
+    R                  = intermediate_R * intermediate_R;
+    t                  = (intermediate_R * intermediate_R * t1) + (intermediate_R * t2) + t3;
+}
+
 Eigen::Matrix4f minimizePointToPlaneMetric(
     const PointCloud &srcPC, const PointCloud &dstPC,
     const std::pair<std::vector<std::size_t>, std::vector<std::size_t>> &modelScenePair) {
     auto size = modelScenePair.first.size();
 
-    Eigen::MatrixXf A = Eigen::MatrixXf::Zero(size, 6);
-    Eigen::MatrixXf B = Eigen::MatrixXf::Zero(size, 1);
-
     auto &modelIdx = modelScenePair.first;
     auto &sceneIdx = modelScenePair.second;
 
-#pragma omp parallel for
+    Eigen::MatrixXf P  = Eigen::MatrixXf::Zero(size, 3);
+    Eigen::MatrixXf Q  = Eigen::MatrixXf::Zero(size, 3);
+    Eigen::MatrixXf NP = Eigen::MatrixXf::Zero(size, 3);
+    Eigen::MatrixXf NQ = Eigen::MatrixXf::Zero(size, 3);
     for (int i = 0; i < size; i++) {
         auto &p1 = srcPC.point[ modelIdx[ i ] ];
+        auto &n1 = srcPC.normal[ modelIdx[ i ] ];
         auto &p2 = dstPC.point[ sceneIdx[ i ] ];
         auto &n2 = dstPC.normal[ sceneIdx[ i ] ];
 
-        auto sub  = p2 - p1;
-        auto axis = p1.cross(n2);
-        auto v    = sub.dot(n2);
-
-        A.block<1, 3>(i, 0) = axis;
-        A.block<1, 3>(i, 3) = n2;
-        B(i, 0)             = v;
+        P.row(i)  = p1.transpose();
+        Q.row(i)  = p2.transpose();
+        NP.row(i) = n1.transpose();
+        NQ.row(i) = n2.transpose();
     }
 
-    Eigen::JacobiSVD<Eigen::MatrixXf> svd(A, Eigen::ComputeThinU | Eigen::ComputeThinV);
-    auto                              x = svd.solve(B);
+    Eigen::Matrix3f    r;
+    Eigen::RowVector3f t;
+    symmetric_rigid_matching(P, Q, NP, NQ, r, t);
 
-    Eigen::Vector3f rpy = x.block<3, 1>(0, 0);
-    Eigen::Vector3f t   = x.block<3, 1>(3, 0);
-
-    Eigen::Matrix4f result   = Eigen::Matrix4f::Identity();
-    result.block<3, 3>(0, 0) = xyz2Matrix(rpy.x(), rpy.y(), rpy.z());
-    result.block<3, 1>(0, 3) = t.transpose();
-
-    return result;
+    Eigen::Isometry3f rt;
+    rt.linear()      = r;
+    rt.translation() = t.transpose();
+    return rt.matrix();
 }
 
 std::pair<std::vector<std::size_t>, std::vector<std::size_t>>
@@ -135,7 +180,7 @@ IterResult iteration(const PointCloud &srcPC, const PointCloud &dstPC, const KDT
         return IterResult{Eigen::Matrix4f::Identity(), size};
 
     auto p   = minimizePointToPlaneMetric(srcPC, dstPC, modelScenePair);
-    auto pct = transformPointCloud(extraIndices(srcPC, modelScenePair.first), p, false);
+    auto pct = transformPointCloud(extraIndices(srcPC, modelScenePair.first), p, true);
 
     std::vector<int>   indices2;
     std::vector<float> distances2;
@@ -199,7 +244,7 @@ std::vector<ConvergenceResult> ICP::regist(const PointCloud &src, const PointClo
 
         ConvergenceResult result;
         result.pose = initPose;
-        auto srcTmp = initPose.isIdentity() ? src : transformPointCloud(src, initPose, false);
+        auto srcTmp = initPose.isIdentity() ? src : transformPointCloud(src, initPose, true);
 
         while (result.iterations < criteria_.iterations) {
             auto tmpResult = iteration(srcTmp, dst, kdtree, criteria_.rejectDist);
@@ -242,7 +287,7 @@ std::vector<ConvergenceResult> ICP::regist(const PointCloud &src, const PointClo
                 break;
             }
 
-            srcTmp = transformPointCloud(srcTmp, tmpResult.pose, false);
+            srcTmp = transformPointCloud(srcTmp, tmpResult.pose, true);
         }
 
         results[ i ] = result;
