@@ -1,9 +1,12 @@
 #include <helper.h>
 #include <icp.h>
 #include <ppf.h>
+#include <private.h>
+#include <serialize.h>
 #include <util.h>
 
 #include <Eigen/Geometry>
+#include <fstream>
 #include <map>
 #include <numeric>
 #include <set>
@@ -15,50 +18,6 @@
 namespace ppf {
 
 const float M_2PI = 2 * M_PI;
-
-struct Feature {
-public:
-    int   refInd;
-    float alphaAngle;
-    float voteValue;
-
-    Feature()
-        : refInd(0)
-        , alphaAngle(0)
-        , voteValue(0) {
-    }
-
-    Feature(int refInd_, float alphaAngle_, float voteValue_)
-        : refInd(refInd_)
-        , alphaAngle(alphaAngle_)
-        , voteValue(voteValue_) {
-    }
-};
-
-struct Candidate {
-public:
-    Candidate(float vote_, int refId_, int angleId_)
-        : vote(vote_)
-        , refId(refId_)
-        , angleId(angleId_) {
-    }
-
-    float vote = 0;
-    int   refId;
-    int   angleId;
-};
-
-struct Detector::IMPL {
-public:
-    // model
-    float      samplingDistanceRel;
-    TrainParam param;
-
-    PointCloud sampledModel;
-    PointCloud reSampledModel;
-
-    std::unordered_map<uint32_t, std::vector<Feature>> hashTable;
-};
 
 Detector::Detector()
     : impl_(nullptr) {
@@ -472,10 +431,29 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
 }
 
 void Detector::save(const std::string &filename) const {
+    std::ofstream of(filename, std::ios::out | std::ios::binary);
+    if (!of.is_open())
+        throw std::runtime_error("failed to open file:" + filename);
+
+    serialize(&of, impl_->samplingDistanceRel);
+    serialize(&of, impl_->param);
+    serialize(&of, impl_->sampledModel);
+    serialize(&of, impl_->reSampledModel);
+    serialize(&of, impl_->hashTable);
+    of.close();
 }
 
-bool Detector::load(const std::string &filename) {
-    return true;
+void Detector::load(const std::string &filename) {
+    std::ifstream ifs(filename, std::ios::binary);
+    if (!ifs.is_open())
+        throw std::runtime_error("failed to open file:" + filename);
+    impl_ = std::make_unique<IMPL>();
+    deserialize(&ifs, impl_->samplingDistanceRel);
+    deserialize(&ifs, impl_->param);
+    deserialize(&ifs, impl_->sampledModel);
+    deserialize(&ifs, impl_->reSampledModel);
+    deserialize(&ifs, impl_->hashTable);
+    ifs.close();
 }
 
 } // namespace ppf

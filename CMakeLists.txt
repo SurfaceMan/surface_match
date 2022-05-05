@@ -18,7 +18,8 @@ set(RPLY_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/rply/rply)
 set(RPLY_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/rply/rply/rply.c)
 
 add_executable(ppf  
-    main.cpp ppf.h ppf.cpp util.h util.cpp type.h type.cpp icp.h icp.cpp filePLY.h filePLY.cpp ${RPLY_SOURCE}
+    main.cpp ppf.h ppf.cpp util.h util.cpp type.h type.cpp icp.h icp.cpp 
+    filePLY.h filePLY.cpp ${RPLY_SOURCE} serialize.h serialize.cpp private.h
 )
 
 target_include_directories(ppf PRIVATE 

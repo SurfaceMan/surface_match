@@ -62,10 +62,9 @@ public:
      * @brief load ppf model from file
      *
      * @param filename
-     * @return true
-     * @return false
+     *
      */
-    bool load(const std::string &filename);
+    void load(const std::string &filename);
 
 private:
     struct IMPL;

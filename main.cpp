@@ -17,18 +17,22 @@ int main(int argc, char *argv[]) {
     // model.normal.clear();
     scene.normal.clear();
 
-    ppf::Detector detector;
     {
-        ppf::Timer t("train model");
+        ppf::Timer    t("train model");
+        ppf::Detector detector;
         detector.trainModel(model, 0.04f);
+        detector.save("1.model");
     }
 
     std::vector<Eigen::Matrix4f> pose;
     std::vector<float>           score;
     ppf::MatchResult             result;
     {
-        ppf::Timer t("match scene");
-        detector.matchScene(scene, pose, score, 0.04f, 0.1f, 0.5f, ppf::MatchParam{0.2, 5},
+        ppf::Timer    t("match scene");
+        ppf::Detector detector;
+        detector.load("1.model");
+        detector.matchScene(scene, pose, score, 0.04f, 0.1f, 0.2f,
+                            ppf::MatchParam{0.2, 35, 10, true, 0.5, 0, true, true, 15, 0.3},
                             &result);
     }
 
