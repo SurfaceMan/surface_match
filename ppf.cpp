@@ -17,6 +17,8 @@
 
 namespace ppf {
 
+const int VERSION = 100;
+
 const float M_2PI = 2 * M_PI;
 
 Detector::Detector()
@@ -437,6 +439,7 @@ void Detector::save(const std::string &filename) const {
     if (!impl_)
         throw std::runtime_error("No trained model in save");
 
+    serialize(&of, VERSION);
     serialize(&of, impl_->samplingDistanceRel);
     serialize(&of, impl_->param);
     serialize(&of, impl_->sampledModel);
@@ -450,6 +453,9 @@ void Detector::load(const std::string &filename) {
     if (!ifs.is_open())
         throw std::runtime_error("failed to open file:" + filename);
     impl_ = std::make_unique<IMPL>();
+
+    int version;
+    deserialize(&ifs, version);
     deserialize(&ifs, impl_->samplingDistanceRel);
     deserialize(&ifs, impl_->param);
     deserialize(&ifs, impl_->sampledModel);
