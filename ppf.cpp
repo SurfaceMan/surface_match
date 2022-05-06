@@ -434,6 +434,8 @@ void Detector::save(const std::string &filename) const {
     std::ofstream of(filename, std::ios::out | std::ios::binary);
     if (!of.is_open())
         throw std::runtime_error("failed to open file:" + filename);
+    if (!impl_)
+        throw std::runtime_error("No trained model in save");
 
     serialize(&of, impl_->samplingDistanceRel);
     serialize(&of, impl_->param);
