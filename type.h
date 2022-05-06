@@ -1,14 +1,3 @@
-/**
- * @file type.h
- * @author y.qiu (y.qiu@pixoel.com)
- * @brief
- * @version 0.1
- * @date 2022-02-16
- *
- * Copyright (c) 2021 Pixoel Technologies Co.ltd.
- *
- */
-
 #pragma once
 
 #include <Eigen/Core>

@@ -1,14 +1,3 @@
-/**
- * @file icp.h
- * @author y.qiu (y.qiu@pixoel.com)
- * @brief
- * @version 0.1
- * @date 2022-02-17
- *
- * Copyright (c) 2021 Pixoel Technologies Co.ltd.
- *
- */
-
 #pragma once
 
 #include <type.h>
