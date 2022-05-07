@@ -1,6 +1,7 @@
 #include "filePLY.h"
 #include <rply.h>
 
+#include <Eigen/Geometry>
 #include <iostream>
 
 namespace ppf {

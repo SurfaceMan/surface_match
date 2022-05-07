@@ -1,6 +1,7 @@
 #pragma once
 
 #include "type.h"
+#include <private.h>
 #include <xsimd/xsimd.hpp>
 
 namespace ppf {

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Eigen/Geometry>
+#include <kdtree.h>
 #include <ppf.h>
 
 namespace ppf {
@@ -46,4 +48,23 @@ public:
 
     std::unordered_map<uint32_t, std::vector<Feature>> hashTable;
 };
+
+struct Pose {
+public:
+    Eigen::Matrix4f    pose;
+    Eigen::AngleAxisf  r;
+    Eigen::Quaternionf q;
+    float              numVotes;
+
+    explicit Pose(float votes);
+
+    void updatePose(const Eigen::Matrix4f &newPose);
+    void updatePoseT(const Eigen::Vector3f &t);
+    void updatePoseQuat(const Eigen::Quaternionf &q);
+
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+};
+
+using KDTree = KDTreeVectorOfVectorsAdaptor<std::vector<Eigen::Vector3f>, float>;
+
 } // namespace ppf

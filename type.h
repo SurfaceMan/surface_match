@@ -1,10 +1,6 @@
 #pragma once
 
 #include <Eigen/Core>
-#include <Eigen/Geometry>
-#include <kdtree.h>
-#include <map>
-#include <tuple>
 #include <vector>
 
 namespace ppf {
@@ -34,22 +30,6 @@ public:
     bool        hasNormal() const;
     std::size_t size() const;
     bool        empty() const;
-};
-
-struct Pose {
-public:
-    Eigen::Matrix4f    pose;
-    Eigen::AngleAxisf  r;
-    Eigen::Quaternionf q;
-    float              numVotes;
-
-    explicit Pose(float votes);
-
-    void updatePose(const Eigen::Matrix4f &newPose);
-    void updatePoseT(const Eigen::Vector3f &t);
-    void updatePoseQuat(const Eigen::Quaternionf &q);
-
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 
 /**
@@ -200,7 +180,5 @@ struct MatchResult {
     PointCloud sampledScene;
     PointCloud keyPoint;
 };
-
-using KDTree = KDTreeVectorOfVectorsAdaptor<std::vector<Eigen::Vector3f>, float>;
 
 } // namespace ppf

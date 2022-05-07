@@ -1,3 +1,4 @@
+#include <private.h>
 #include <type.h>
 
 namespace ppf {
