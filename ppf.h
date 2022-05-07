@@ -1,12 +1,13 @@
 #pragma once
 
+#include <apiExport.h>
 #include <memory>
 #include <string>
 #include <type.h>
 
 namespace ppf {
 
-class Detector {
+class API_PUBLIC Detector {
 public:
     /**
      * @brief Construct a new Detector object

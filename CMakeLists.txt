@@ -17,8 +17,8 @@ set(KDTREE_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/kdtree)
 set(RPLY_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/rply/rply)
 set(RPLY_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/rply/rply/rply.c)
 
-add_executable(ppf  
-    main.cpp ppf.h ppf.cpp util.h util.cpp type.h type.cpp icp.h icp.cpp 
+add_library(ppf SHARED
+    ppf.h ppf.cpp util.h util.cpp type.h type.cpp icp.h icp.cpp 
     filePLY.h filePLY.cpp ${RPLY_SOURCE} serialize.h serialize.cpp private.h
 )
 
@@ -32,5 +32,10 @@ target_include_directories(ppf PRIVATE
 target_link_libraries(ppf PUBLIC OpenMP::OpenMP_CXX)
 target_compile_options(ppf PRIVATE 
 	$<$<CXX_COMPILER_ID:MSVC>:/bigobj /arch:AVX2> 
-	$<$<CXX_COMPILER_ID:GNU>:-Wa, -mavx>
+	$<$<CXX_COMPILER_ID:GNU>:-Wa, -mavx -fPIC -fvisibility=hidden -Wl,--exclude-libs,ALL>
 ) 
+target_compile_definitions(ppf PUBLIC API_EXPORTS)
+
+install(FILES ppf.h type.h apiExport.h TYPE INCLUDE)
+install(TARGETS ppf EXPORT ppf LIBRARY)
+install(EXPORT ppf FILE ppfTargets.cmake DESTINATION lib/cmake/)
