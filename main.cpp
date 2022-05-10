@@ -1,12 +1,9 @@
 #include <filePLY.h>
 #include <helper.h>
-#include <icp.h>
 #include <ppf.h>
 #include <util.h>
-#include <xsimd/xsimd.hpp>
 
 int main(int argc, char *argv[]) {
-    std::cout << "float batch size:" << xsimd::simd_type<float>::size << std::endl;
 
     ppf::PointCloud model;
     ppf::readPLY(argv[ 1 ], model);
@@ -48,7 +45,7 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
-
+/*
 int main2(int argc, char *argv[]) {
     ppf::PointCloud model;
     ppf::readPLY(argv[ 1 ], model);
@@ -103,3 +100,4 @@ int main3(int argc, char *argv[]) {
     ppf::writePLY("normal.ply", model);
     return 0;
 }
+*/

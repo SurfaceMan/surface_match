@@ -3,6 +3,7 @@
 #include <Eigen/Geometry>
 #include <kdtree.h>
 #include <ppf.h>
+#include <xsimd/xsimd.hpp>
 
 namespace ppf {
 struct Feature {
@@ -66,5 +67,8 @@ public:
 };
 
 using KDTree = KDTreeVectorOfVectorsAdaptor<std::vector<Eigen::Vector3f>, float>;
+
+using vectorF = std::vector<float, xsimd::aligned_allocator<float>>;
+using vectorI = std::vector<uint32_t, xsimd::aligned_allocator<uint32_t>>;
 
 } // namespace ppf

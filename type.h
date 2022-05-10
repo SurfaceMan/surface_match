@@ -5,7 +5,7 @@
 
 namespace ppf {
 
-struct BoundingBox {
+struct API_PUBLIC BoundingBox {
 public:
     Eigen::Vector3f min;
     Eigen::Vector3f max;
@@ -19,7 +19,7 @@ public:
     float           diameter() const;
 };
 
-struct PointCloud {
+struct API_PUBLIC PointCloud {
 public:
     std::vector<Eigen::Vector3f> point;
     std::vector<Eigen::Vector3f> normal;
@@ -36,7 +36,7 @@ public:
  * @brief additional parameter for training model
  *
  */
-struct TrainParam {
+struct API_PUBLIC TrainParam {
 public:
     /**
      * @brief Set the discretion distance of the point pair distance
@@ -77,7 +77,7 @@ public:
  * @brief additional parameter for matching scene
  *
  */
-struct MatchParam {
+struct API_PUBLIC MatchParam {
 public:
     /**
      * @brief The neighbors count threshold of key point. less than this won't compute. The value is

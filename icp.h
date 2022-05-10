@@ -1,6 +1,6 @@
 #pragma once
 
-#include <private.h>
+#include <privateType.h>
 #include <type.h>
 
 namespace ppf {

@@ -1,7 +1,8 @@
 #include <helper.h>
 #include <icp.h>
 #include <ppf.h>
-#include <private.h>
+#include <privateType.h>
+#include <privateUtil.h>
 #include <serialize.h>
 #include <util.h>
 

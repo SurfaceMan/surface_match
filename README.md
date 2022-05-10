@@ -2,7 +2,7 @@
 
 ## highlights:
 - score based multi-instance
-- OpenMP & SIMD based parallelization
+- OpenMP & SIMD based concurrency
 - build kdtree only once
 - pose refined with icp
 - support model save/load

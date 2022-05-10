@@ -18,8 +18,8 @@ set(RPLY_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/rply/rply)
 set(RPLY_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/rply/rply/rply.c)
 
 add_library(ppf SHARED
-    ppf.h ppf.cpp util.h util.cpp type.h type.cpp icp.h icp.cpp 
-    filePLY.h filePLY.cpp ${RPLY_SOURCE} serialize.h serialize.cpp private.h
+    ppf.h ppf.cpp util.h util.cpp type.h type.cpp icp.h icp.cpp privateUtil.h
+    filePLY.h filePLY.cpp ${RPLY_SOURCE} serialize.h serialize.cpp privateType.h
 )
 
 target_include_directories(ppf PRIVATE 
@@ -36,6 +36,17 @@ target_compile_options(ppf PRIVATE
 ) 
 target_compile_definitions(ppf PUBLIC API_EXPORTS)
 
-install(FILES ppf.h type.h apiExport.h TYPE INCLUDE)
+add_library(ppf::ppf ALIAS ppf)
+set_property(TARGET ppf PROPERTY EXPORT_NAME ppf::ppf)
+
+install(FILES ppf.h type.h apiExport.h filePLY.h util.h TYPE INCLUDE)
 install(TARGETS ppf EXPORT ppf LIBRARY)
-install(EXPORT ppf FILE ppfTargets.cmake DESTINATION lib/cmake/)
+#install(EXPORT ppf FILE ppfTargets.cmake DESTINATION lib/cmake/)
+#install(EXPORT ppf FILE ppf-config.cmake DESTINATION lib/cmake/)
+
+option(BUILD_EXAMPLE "build example" ON)
+if(BUILD_EXAMPLE)
+    add_executable(test_ppf main.cpp)
+    target_include_directories(test_ppf PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${EIGEN3_INCLUDE_DIRS})
+    target_link_libraries(test_ppf ppf::ppf)
+endif(BUILD_EXAMPLE)

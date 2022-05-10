@@ -1,3 +1,5 @@
+#include <privateType.h>
+#include <privateUtil.h>
 #include <util.h>
 
 #include <Eigen/Core>

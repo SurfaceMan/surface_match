@@ -1,67 +1,23 @@
 #pragma once
 
-#include "type.h"
-#include <private.h>
-#include <xsimd/xsimd.hpp>
+#include <apiExport.h>
+#include <type.h>
 
 namespace ppf {
-using vectorF = std::vector<float, xsimd::aligned_allocator<float>>;
-using vectorI = std::vector<uint32_t, xsimd::aligned_allocator<uint32_t>>;
 
-PointCloud sampleMesh(const ppf::PointCloud &pc, float radius);
+API_PUBLIC PointCloud sampleMesh(const ppf::PointCloud &pc, float radius);
 
-std::vector<int> removeNan(const ppf::PointCloud &pc, bool checkNormal = false);
+API_PUBLIC std::vector<int> removeNan(const ppf::PointCloud &pc, bool checkNormal = false);
 
-std::vector<std::size_t> samplePointCloud(const KDTree &tree, float sampleStep,
-                                          std::vector<int> *indicesOfIndices = nullptr);
+API_PUBLIC PointCloud extraIndices(const ppf::PointCloud          &pc,
+                                   const std::vector<std::size_t> &indices);
 
-PointCloud extraIndices(const ppf::PointCloud &pc, const std::vector<std::size_t> &indices);
+API_PUBLIC void normalizeNormal(ppf::PointCloud &pc);
 
-void normalizeNormal(ppf::PointCloud &pc);
+API_PUBLIC BoundingBox computeBoundingBox(const ppf::PointCloud  &pc,
+                                          const std::vector<int> &validIndices = {});
 
-BoundingBox computeBoundingBox(const ppf::PointCloud  &pc,
-                               const std::vector<int> &validIndices = {});
-
-PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f &pose,
-                               bool useNormal = true);
-
-void estimateNormal(ppf::PointCloud &pc, const std::vector<std::size_t> &indices,
-                    const KDTree &kdtree, int k = 10, bool smooth = true);
-
-Eigen::Matrix4f transformRT(const Eigen::Vector3f &p, const Eigen::Vector3f &n);
-
-inline Eigen::Matrix4f XRotMat(float angle) {
-    Eigen::Matrix4f T;
-    T << 1, 0, 0, 0, 0, cos(angle), -sin(angle), 0, 0, sin(angle), cos(angle), 0, 0, 0, 0, 1;
-
-    return T;
-}
-
-std::vector<std::vector<Pose>> clusterPose(const std::vector<Pose> &poseList,
-                                           float distanceThreshold, float angleThreshold);
-
-/**
- * @brief cluster by overlap
- *
- * @param poseList
- * @param pos
- * @param threshold
- * @return std::vector<Pose>
- */
-std::vector<Pose> clusterPose2(std::vector<Pose> &poseList, Eigen::Vector3f &pos, float threshold);
-
-std::vector<Pose> sortPoses(std::vector<Pose> poseList);
-
-std::vector<Pose> avgClusters(const std::vector<std::vector<Pose>> &clusters);
-
-void findClosestPoint(const KDTree &kdtree, const PointCloud &srcPC, std::vector<int> &indices,
-                      std::vector<float> &distances);
-
-vectorI computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &n1, const vectorF &p2x,
-                   const vectorF &p2y, const vectorF &p2z, const vectorF &n2x, const vectorF &n2y,
-                   const vectorF &n2z, float angleStep, float distStep);
-
-vectorF computeAlpha(Eigen::Matrix4f &rt, const vectorF &p2x, const vectorF &p2y,
-                     const vectorF &p2z);
+API_PUBLIC PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f &pose,
+                                          bool useNormal = true);
 
 } // namespace ppf

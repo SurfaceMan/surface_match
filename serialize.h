@@ -1,7 +1,7 @@
 #pragma once
 
 #include <iostream>
-#include <private.h>
+#include <privateType.h>
 #include <type.h>
 
 namespace ppf {

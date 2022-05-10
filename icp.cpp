@@ -1,5 +1,6 @@
 #include <icp.h>
 
+#include <privateUtil.h>
 #include <util.h>
 
 namespace ppf {
