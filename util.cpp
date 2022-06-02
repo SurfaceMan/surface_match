@@ -535,6 +535,21 @@ uint32_t hashPPF(const Eigen::Vector4f &ppfValue, float angleRadians, float dist
     return murmurhash3(key, 16, 42);
 }
 
+inline float angleA2B(const Eigen::Vector3f &a, const Eigen::Vector3f &b) {
+    return atan2((a.cross(b)).norm(), a.dot(b));
+}
+
+inline xsimd::batch<float> angleA2B(const xsimd::batch<float> &ax, const xsimd::batch<float> &ay,
+                                    const xsimd::batch<float> &az, const xsimd::batch<float> &bx,
+                                    const xsimd::batch<float> &by, const xsimd::batch<float> &bz) {
+    auto i     = ay * bz - az * by;
+    auto j     = az * bx - ax * bz;
+    auto k     = ax * by - ay * bx;
+    auto cross = xsimd::sqrt(i * i + j * j + k * k);
+    auto dot   = ax * bx + ay * by + az * bz;
+    return xsimd::atan2(cross, dot);
+}
+
 uint32_t computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &n1, const Eigen::Vector3f &p2,
                     const Eigen::Vector3f &n2, float angleStep, float distStep) {
 
@@ -543,9 +558,9 @@ uint32_t computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &n1, const 
     float           f1, f2, f3;
     if (dn > 0) {
         Eigen::Vector3f dNorm = d / dn;
-        f1                    = atan2((dNorm.cross(n1)).norm(), dNorm.dot(n1));
-        f2                    = atan2((dNorm.cross(n2)).norm(), dNorm.dot(n2));
-        f3                    = atan2((n1.cross(n2)).norm(), n1.dot(n2));
+        f1 = angleA2B(dNorm, n1); // atan2((dNorm.cross(n1)).norm(), dNorm.dot(n1));
+        f2 = angleA2B(dNorm, n2); // atan2((dNorm.cross(n2)).norm(), dNorm.dot(n2));
+        f3 = angleA2B(n1, n2);    // atan2((n1.cross(n2)).norm(), n1.dot(n2));
     } else {
         f1 = 0;
         f2 = 0;
@@ -634,9 +649,12 @@ vectorI computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &n1, const v
         auto ny   = dy / norm;
         auto nz   = dz / norm;
 
-        auto f1 = xsimd::acos(rn1x * nx + rn1y * ny + rn1z * nz);
-        auto f2 = xsimd::acos(rn2x * nx + rn2y * ny + rn2z * nz);
-        auto f3 = xsimd::acos(rn2x * rn1x + rn2y * rn1y + rn2z * rn1z);
+        auto f1 = angleA2B(nx, ny, nz, rn1x, rn1y,
+                           rn1z); // xsimd::acos(rn1x * nx + rn1y * ny + rn1z * nz);
+        auto f2 = angleA2B(nx, ny, nz, rn2x, rn2y,
+                           rn2z); // xsimd::acos(rn2x * nx + rn2y * ny + rn2z * nz);
+        auto f3 = angleA2B(rn1x, rn1y, rn1z, rn2x, rn2y,
+                           rn2z); // xsimd::acos(rn2x * rn1x + rn2y * rn1y + rn2z * rn1z);
 
         auto hash = hashPPF(f1, f2, f3, norm, angleStep, distStep);
         xsimd::store(&result[ i ], hash);
