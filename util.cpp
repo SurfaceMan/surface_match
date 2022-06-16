@@ -117,10 +117,8 @@ std::vector<std::size_t> samplePointCloud(const KDTree &tree, float sampleStep,
 #pragma omp parallel for
     for (int i = 0; i < size; i++) {
         auto index = tree.index->vAcc[ i ];
-        if (index == nanoflann::INVALID_INDEX) {
-            keep[ i ] = false;
+        if (index == nanoflann::INVALID_INDEX)
             continue;
-        }
 
         if (!keep[ index ])
             continue;
