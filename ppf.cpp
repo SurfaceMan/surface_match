@@ -357,6 +357,8 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
     auto center   = impl_->sampledModel.box.center();
     auto cluster2 = clusterPose2(sorted, center, maxOverlapDist);
 
+    std::cout << "after cluster has items: " << cluster2.size() << std::endl;
+
     //[6] icp
     ICP sparseIcp(ConvergenceCriteria(5, poseRefDistThreshold, sampleStep, sampleStep * 0.5,
                                       sampleStep * 0.6));
@@ -431,6 +433,8 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
         scores[ i ]  = target.first;
         poses[ i ]   = target.second;
     }
+
+    std::cout << "after icp has items: " << poses.size() << std::endl;
 }
 
 void Detector::save(const std::string &filename) const {
