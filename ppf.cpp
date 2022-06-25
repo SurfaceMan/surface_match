@@ -399,6 +399,9 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
             std::cout << "sparsePoseRefinement score:" << score << std::endl;
         }
 
+        if (param.sparsePoseRefinement && score < minScore)
+            continue;
+
         if (param.sparsePoseRefinement && param.densePoseRefinement) {
             sceneKdtree.restore();
             sceneKdtree.reduce(indicesOfSampleScene2);
