@@ -307,6 +307,16 @@ void estimateNormal(ppf::PointCloud &pc, const std::vector<std::size_t> &indices
                 normal = -normal;
             continue;
         }
+    } else {
+        // normal's direction default toward z axis
+#pragma omp parallel for
+        for (int i = 0; i < size; i++) {
+            auto  idx    = indices[ i ];
+            auto &normal = pc.normal[ idx ];
+            if (normal.dot(Eigen::Vector3f::UnitZ()) < 0.f)
+                normal = -normal;
+            continue;
+        }
     }
 }
 
