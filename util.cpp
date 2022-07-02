@@ -320,6 +320,125 @@ void estimateNormal(ppf::PointCloud &pc, const std::vector<std::size_t> &indices
     }
 }
 
+void estimateNormalMLS(ppf::PointCloud &pc, const std::vector<std::size_t> &indices,
+                       const KDTree &kdtree, float radius, int order) {
+    // Compute the number of coefficients
+    int  nCoeff = (order + 1) * (order + 2) / 2;
+    auto r2     = radius * radius;
+
+    if (!pc.hasNormal())
+        pc.normal.resize(pc.point.size(), Eigen::Vector3f(NAN, NAN, NAN));
+
+    auto size = indices.size();
+#pragma omp parallel for
+    for (int i = 0; i < size; i++) {
+        auto  idx    = indices[ i ];
+        auto &normal = pc.normal[ idx ];
+        auto &point  = pc.point[ idx ];
+
+        // neighbour
+        std::vector<std::pair<int, float>>     indices;
+        nanoflann::RadiusResultSet<float, int> resultSet(r2, indices);
+        kdtree.index->findNeighbors(resultSet, &point[ 0 ], nanoflann::SearchParams(32, 0, false));
+        if (indices.size() < 3)
+            continue;
+
+        std::vector<Eigen::Vector3f> neighbors(indices.size());
+        for (int j = 0; j < indices.size(); j++)
+            neighbors[ j ] = kdtree.m_data[ indices[ j ].first ];
+
+        // pca
+        Eigen::Map<const Eigen::Matrix3Xf> P(neighbors[ 0 ].data(), 3, neighbors.size());
+        Eigen::Vector3f                    centroid = P.rowwise().mean();
+        Eigen::Matrix3Xf                   centered = P.colwise() - centroid;
+        Eigen::Matrix3f                    cov      = centered * centered.transpose();
+
+        // eigvecs sorted in increasing order of eigvals
+        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig;
+        eig.computeDirect(cov);
+        Eigen::Vector3f eval   = eig.eigenvalues();
+        int             minInd = 0;
+        eval.cwiseAbs().minCoeff(&minInd);
+        normal = eig.eigenvectors().col(minInd); // is already normalized
+        if (!normal.allFinite())
+            continue;
+        auto d = -1 * normal.dot(centroid);
+
+        // project query point
+        const float     distance = point.dot(normal) + d;
+        Eigen::Vector3f mean     = point - distance * normal;
+
+        // Local coordinate system (Darboux frame)
+        auto vAxis = normal.unitOrthogonal();
+        auto uAxis = normal.cross(vAxis);
+
+        // Perform polynomial fit to update point and normal
+        if (order <= 1 && nCoeff > indices.size())
+            continue;
+        auto weightFunc = [ r2 ](float sqDist) { return std::exp(-sqDist / r2); };
+
+        // Allocate matrices and vectors to hold the data used for the polynomial fit
+        Eigen::VectorXf weightVec(neighbors.size());
+        Eigen::MatrixXf Ps(nCoeff, neighbors.size());
+        Eigen::VectorXf fVec(neighbors.size());
+        Eigen::MatrixXf PWeightPt(nCoeff, nCoeff);
+
+        // Update neighborhood, since point was projected, and computing relative
+        // positions. Note updating only distances for the weights for speed
+        std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>> deMeaned(
+            neighbors.size());
+        for (int j = 0; j < neighbors.size(); j++) {
+            auto &neighbor = neighbors[ j ];
+            deMeaned[ j ]  = neighbor - mean;
+            weightVec[ j ] = weightFunc(deMeaned[ j ].squaredNorm());
+        }
+
+        // Go through neighbors, transform them in the local coordinate system,
+        // save height and the evaluation of the polynomial's terms
+        for (int j = 0; j < neighbors.size(); j++) {
+            // Transforming coordinates
+            const float uCoord = deMeaned[ j ].dot(uAxis);
+            const float vCoord = deMeaned[ j ].dot(vAxis);
+            fVec(j)            = deMeaned[ j ].dot(normal);
+
+            // Compute the polynomial's terms at the current point
+            int   idx  = 0;
+            float uPow = 1;
+            for (int ui = 0; ui <= order; ++ui) {
+                float vPow = 1;
+                for (int vi = 0; vi <= order - ui; ++vi) {
+                    Ps(idx++, j) = uPow * vPow;
+                    vPow *= vCoord;
+                }
+                uPow *= uCoord;
+            }
+        }
+
+        // Computing coefficients
+        Eigen::MatrixXf PWeight = Ps * weightVec.asDiagonal();
+        PWeightPt               = PWeight * Ps.transpose();
+        Eigen::VectorXf cVec    = PWeight * fVec;
+        PWeightPt.llt().solveInPlace(cVec);
+        if (!cVec.allFinite())
+            continue;
+
+        // project query point
+        // Projection onto MLS surface along Darboux normal to the height at (0,0)
+        point = mean + (cVec[ 0 ] * normal);
+        // Compute tangent vectors using the partial derivates evaluated at (0,0) which is
+        // c_vec[order_+1] and c_vec[1]
+        normal = (normal - cVec[ order + 1 ] * uAxis - cVec[ 1 ] * vAxis).normalized();
+
+        if (pc.viewPoint.allFinite()) {
+            if (normal.dot(pc.viewPoint - point) < 0.f)
+                normal = -normal;
+        } else {
+            if (normal.dot(Eigen::Vector3f::UnitZ()) < 0.f)
+                normal = -normal;
+        }
+    }
+}
+
 Eigen::Matrix4f transformRT(const Eigen::Vector3f &p, const Eigen::Vector3f &n) {
     float           angle = acos(n.x());    // rotation angle
     Eigen::Vector3f axis(0, n.z(), -n.y()); // rotation axis

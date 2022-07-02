@@ -10,6 +10,9 @@ std::vector<std::size_t> samplePointCloud(const KDTree &tree, float sampleStep,
 void estimateNormal(ppf::PointCloud &pc, const std::vector<std::size_t> &indices,
                     const KDTree &kdtree, int k = 10, bool smooth = true);
 
+void estimateNormalMLS(ppf::PointCloud &pc, const std::vector<std::size_t> &indices,
+                       const KDTree &kdtree, float radius, int order);
+
 Eigen::Matrix4f transformRT(const Eigen::Vector3f &p, const Eigen::Vector3f &n);
 
 inline Eigen::Matrix4f XRotMat(float angle) {
