@@ -258,6 +258,8 @@ void computeNormal(ppf::PointCloud &pc, int idx, const KDTree &tree, int k,
     int             minInd = 0;
     eval.cwiseAbs().minCoeff(&minInd);
     normal = eig.eigenvectors().col(minInd); // is already normalized
+
+    point = centroid;
 }
 
 void estimateNormal(ppf::PointCloud &pc, const std::vector<std::size_t> &indices,
