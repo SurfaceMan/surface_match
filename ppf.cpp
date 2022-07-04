@@ -388,8 +388,10 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
             sceneKdtree.restore();
             sceneKdtree.reduce(indicesOfSampleScene);
             auto refined = sparseIcp.regist(impl_->sampledModel, scene, sceneKdtree, pose);
-            if (!refined.converged)
+            if (!refined.converged) {
+                std::cout << "sparsePoseRefinement not converge " << (int)refined.type << std::endl;
                 continue;
+            }
 
             pose  = refined.pose;
             score = refined.inliner / float(refNum);
@@ -406,8 +408,10 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
             sceneKdtree.restore();
             sceneKdtree.reduce(indicesOfSampleScene2);
             auto refined = denseIcp.regist(impl_->reSampledModel, scene, sceneKdtree, pose);
-            if (!refined.converged)
+            if (!refined.converged) {
+                std::cout << "densePoseRefinement not converge " << (int)refined.type << std::endl;
                 continue;
+            }
 
             pose  = refined.pose;
             score = refined.inliner / float(impl_->reSampledModel.point.size());
