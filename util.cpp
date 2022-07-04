@@ -108,7 +108,7 @@ std::vector<std::size_t> samplePointCloud(const KDTree &tree, float sampleStep,
                                           std::vector<int> *indicesOfIndices) {
 
     auto                     size = tree.index->vAcc.size();
-    std::vector<bool>        keep(size, true);
+    std::vector<bool>        keep(tree.m_data.size(), true);
     auto                     radius = sampleStep * sampleStep;
     std::vector<std::size_t> result;
     if (indicesOfIndices)
