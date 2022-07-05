@@ -12,7 +12,7 @@ API_PUBLIC std::vector<int> removeNan(const ppf::PointCloud &pc, bool checkNorma
 API_PUBLIC PointCloud extraIndices(const ppf::PointCloud          &pc,
                                    const std::vector<std::size_t> &indices);
 
-API_PUBLIC void normalizeNormal(ppf::PointCloud &pc);
+API_PUBLIC void normalizeNormal(ppf::PointCloud &pc, bool invert = false);
 
 API_PUBLIC BoundingBox computeBoundingBox(const ppf::PointCloud  &pc,
                                           const std::vector<int> &validIndices = {});

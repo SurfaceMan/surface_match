@@ -9,15 +9,15 @@ int main(int argc, char *argv[]) {
     ppf::readPLY(argv[ 1 ], model);
     ppf::PointCloud scene;
     ppf::readPLY(argv[ 2 ], scene);
-    scene.viewPoint = {620, 100, 500};
+    scene.viewPoint = {-200, -50, -500};
     auto tmp        = model;
     // model.normal.clear();
-    scene.normal.clear();
+    // scene.normal.clear();
 
     {
         ppf::Timer    t("train model");
         ppf::Detector detector;
-        detector.trainModel(model, 0.04f);
+        detector.trainModel(model, 0.025f);
         detector.save("1.model");
     }
 
@@ -28,8 +28,8 @@ int main(int argc, char *argv[]) {
         ppf::Timer    t("match scene");
         ppf::Detector detector;
         detector.load("1.model");
-        detector.matchScene(scene, pose, score, 0.04f, 0.1f, 0.2f,
-                            ppf::MatchParam{0.2, 35, 10, true, 0.5, 0, true, true, 15, 0.3},
+        detector.matchScene(scene, pose, score, 0.025f, 0.1f, 0.1f,
+                            ppf::MatchParam{0.1, 35, 10, true, false, 0.5, 0, true, true, 15, 0.3},
                             &result);
     }
 

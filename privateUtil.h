@@ -8,10 +8,10 @@ std::vector<std::size_t> samplePointCloud(const KDTree &tree, float sampleStep,
                                           std::vector<int> *indicesOfIndices = nullptr);
 
 void estimateNormal(ppf::PointCloud &pc, const std::vector<std::size_t> &indices,
-                    const KDTree &kdtree, int k = 10, bool smooth = true);
+                    const KDTree &kdtree, int k = 10, bool smooth = true, bool invert = false);
 
 void estimateNormalMLS(ppf::PointCloud &pc, const std::vector<std::size_t> &indices,
-                       const KDTree &kdtree, float radius, int order);
+                       const KDTree &kdtree, float radius, int order, bool invert = false);
 
 Eigen::Matrix4f transformRT(const Eigen::Vector3f &p, const Eigen::Vector3f &n);
 

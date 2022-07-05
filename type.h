@@ -105,6 +105,12 @@ public:
     bool smoothNormal;
 
     /**
+     * @brief Invert the orientation of the scene
+     *
+     */
+    bool invertNormal;
+
+    /**
      * @brief The minimum distance between the centers of the axis-aligned bounding boxes of two
      * matches. The value is set relative to the diameter of the object.
      *
@@ -169,11 +175,12 @@ public:
     float poseRefScoringDistAbs;
 
     explicit MatchParam(float voteThresholdFraction = 0.2f, int numMatches = 1, int knnNormal = 10,
-                        bool smoothNormal = true, float maxOverlapDistRel = 0.5f,
-                        float maxOverlapDistAbs = 0, bool sparsePoseRefinement = true,
-                        bool densePoseRefinement = true, int poseRefNumSteps = 5,
-                        float poseRefDistThresholdRel = 0.1f, float poseRefDistThresholdAbs = 0,
-                        float poseRefScoringDistRel = 0.01f, float poseRefScoringDistAbs = 0);
+                        bool smoothNormal = true, bool invertNormal = false,
+                        float maxOverlapDistRel = 0.5f, float maxOverlapDistAbs = 0,
+                        bool sparsePoseRefinement = true, bool densePoseRefinement = true,
+                        int poseRefNumSteps = 5, float poseRefDistThresholdRel = 0.1f,
+                        float poseRefDistThresholdAbs = 0, float poseRefScoringDistRel = 0.01f,
+                        float poseRefScoringDistAbs = 0);
 };
 
 struct MatchResult {

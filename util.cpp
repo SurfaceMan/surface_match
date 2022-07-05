@@ -160,8 +160,15 @@ PointCloud extraIndices(const ppf::PointCloud &pc, const std::vector<std::size_t
     return result;
 }
 
-void normalizeNormal(ppf::PointCloud &pc) {
+void normalizeNormal(ppf::PointCloud &pc, bool invert) {
 
+    if (invert) {
+#pragma omp parallel for
+        for (int i = 0; i < pc.normal.size(); i++) {
+            pc.normal[ i ] = -pc.normal[ i ].normalized();
+        }
+        return;
+    }
 #pragma omp parallel for
     for (int i = 0; i < pc.normal.size(); i++) {
         pc.normal[ i ].normalize();
@@ -263,7 +270,7 @@ void computeNormal(ppf::PointCloud &pc, int idx, const KDTree &tree, int k,
 }
 
 void estimateNormal(ppf::PointCloud &pc, const std::vector<std::size_t> &indices,
-                    const KDTree &tree, int k, bool smooth) {
+                    const KDTree &tree, int k, bool smooth, bool invert) {
     if (!pc.hasNormal())
         pc.normal.resize(pc.point.size(), Eigen::Vector3f(NAN, NAN, NAN));
     if (k < 3)
@@ -299,13 +306,17 @@ void estimateNormal(ppf::PointCloud &pc, const std::vector<std::size_t> &indices
         }
     }
 
+    std::function<bool(const float &)> check = [](const float &val) { return val < 0.f; };
+    if (invert)
+        check = [](const float &val) { return val > 0.f; };
+
     if (pc.viewPoint.allFinite()) {
 #pragma omp parallel for
         for (int i = 0; i < size; i++) {
             auto  idx    = indices[ i ];
             auto &normal = pc.normal[ idx ];
             auto &point  = pc.point[ idx ];
-            if (normal.dot(pc.viewPoint - point) < 0.f)
+            if (check(normal.dot(pc.viewPoint - point)))
                 normal = -normal;
             continue;
         }
@@ -315,7 +326,7 @@ void estimateNormal(ppf::PointCloud &pc, const std::vector<std::size_t> &indices
         for (int i = 0; i < size; i++) {
             auto  idx    = indices[ i ];
             auto &normal = pc.normal[ idx ];
-            if (normal.dot(Eigen::Vector3f::UnitZ()) < 0.f)
+            if (check(normal.dot(Eigen::Vector3f::UnitZ())))
                 normal = -normal;
             continue;
         }
@@ -323,13 +334,17 @@ void estimateNormal(ppf::PointCloud &pc, const std::vector<std::size_t> &indices
 }
 
 void estimateNormalMLS(ppf::PointCloud &pc, const std::vector<std::size_t> &indices,
-                       const KDTree &kdtree, float radius, int order) {
+                       const KDTree &kdtree, float radius, int order, bool invert) {
     // Compute the number of coefficients
     int  nCoeff = (order + 1) * (order + 2) / 2;
     auto r2     = radius * radius;
 
     if (!pc.hasNormal())
         pc.normal.resize(pc.point.size(), Eigen::Vector3f(NAN, NAN, NAN));
+
+    std::function<bool(const float &)> check = [](const float &val) { return val < 0.f; };
+    if (invert)
+        check = [](const float &val) { return val > 0.f; };
 
     auto size = indices.size();
 #pragma omp parallel for
@@ -432,10 +447,10 @@ void estimateNormalMLS(ppf::PointCloud &pc, const std::vector<std::size_t> &indi
         normal = (normal - cVec[ order + 1 ] * uAxis - cVec[ 1 ] * vAxis).normalized();
 
         if (pc.viewPoint.allFinite()) {
-            if (normal.dot(pc.viewPoint - point) < 0.f)
+            if (check(normal.dot(pc.viewPoint - point)))
                 normal = -normal;
         } else {
-            if (normal.dot(Eigen::Vector3f::UnitZ()) < 0.f)
+            if (check(normal.dot(Eigen::Vector3f::UnitZ())))
                 normal = -normal;
         }
     }
