@@ -45,7 +45,7 @@ PointCloud sampleMesh(const ppf::PointCloud &pc, float radius) {
     areas[ 0 ] = areas[ 0 ] / area;
     for (int i = 1; i < triangleSize; i++)
         areas[ i ] = areas[ i ] / area + areas[ i - 1 ];
-
+    areas[ triangleSize - 1 ] = 1.f;
     // number of point
     int nPoints = area / (radius * radius);
 
