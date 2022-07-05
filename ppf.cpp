@@ -360,10 +360,11 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
     std::cout << "after cluster has items: " << cluster2.size() << std::endl;
 
     //[6] icp
-    ICP sparseIcp(ConvergenceCriteria(5, poseRefDistThreshold, sampleStep, sampleStep * 0.5,
-                                      sampleStep * 0.6));
-    ICP denseIcp(ConvergenceCriteria(param.poseRefNumSteps, poseRefDistThreshold,
-                                     poseRefScoringDist, reSampleStep * 0.5, reSampleStep));
+    ICP sparseIcp(
+        ConvergenceCriteria(5, poseRefDistThreshold, sampleStep, sampleStep * 0.5, sampleStep));
+    auto sampleMax = std::min(sampleStep, (reSampleStep * 1.5f));
+    ICP  denseIcp(ConvergenceCriteria(param.poseRefNumSteps, poseRefDistThreshold,
+                                      poseRefScoringDist, reSampleStep * 0.5, sampleMax));
 
     std::vector<int> indicesOfSampleScene2;
     if (param.densePoseRefinement) {
