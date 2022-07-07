@@ -297,4 +297,59 @@ std::vector<ConvergenceResult> ICP::regist(const PointCloud &src, const PointClo
     return results;
 }
 
+float inline square(float x) {
+    return x * x;
+}
+
+float TukeyLossWeight(float residual, float k) {
+    const float e = std::abs(residual);
+    return square(1.f - square(std::min(1.f, e / k)));
+}
+
+void point_to_plane(const Eigen::MatrixXf &X, const Eigen::MatrixXf &Y, const Eigen::MatrixXf &YN,
+                    Eigen::Matrix3f &R, Eigen::RowVector3f &t) {
+    auto size = X.rows();
+
+    Eigen::VectorXf w = Eigen::VectorXf::Zero(size);
+    Eigen::VectorXf d = Eigen::VectorXf::Zero(size);
+#pragma omp parallel for
+    for (int i = 0; i < size; ++i) {
+        d[ i ] = std::abs(YN.row(i).dot(X.row(i) - Y.row(i)));
+        w[ i ] = TukeyLossWeight(d[ i ], 2);
+    }
+
+    /// Normalize weight vector
+    Eigen::VectorXf wNormalized = w / w.sum();
+
+    /// De-mean
+    Eigen::RowVector3f xMean;
+    for (int i = 0; i < 3; ++i)
+        xMean(i) = (X.col(i).array() * wNormalized.transpose().array()).sum();
+    Eigen::MatrixXf cX = X.rowwise() - xMean;
+
+    /// Prepare LHS and RHS
+    Eigen::MatrixXf LHS = Eigen::MatrixXf::Zero(6, 6);
+    Eigen::VectorXf RHS = Eigen::VectorXf::Zero(6, 1);
+
+    for (int i = 0; i < size; i++) {
+        Eigen::Vector3f x = cX.row(i);
+        Eigen::Vector3f n = YN.row(i);
+
+        Eigen::VectorXf J_r   = Eigen::VectorXf::Zero(6);
+        J_r.block<3, 1>(0, 0) = x.cross(n);
+        J_r.block<3, 1>(3, 0) = n;
+
+        LHS += J_r * w[ i ] * J_r.transpose();
+        RHS += J_r * w[ i ] * -d[ i ];
+    }
+    /// Compute transformation
+    RHS = LHS.ldlt().solve(RHS);
+
+    R = Eigen::AngleAxisf(RHS(0), Eigen::Vector3f::UnitX()) *
+        Eigen::AngleAxisf(RHS(1), Eigen::Vector3f::UnitY()) *
+        Eigen::AngleAxisf(RHS(2), Eigen::Vector3f::UnitZ());
+
+    t = (xMean.transpose() - R * xMean.transpose()).transpose() + RHS.tail<3>().transpose();
+}
+
 } // namespace ppf
