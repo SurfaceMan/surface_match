@@ -324,7 +324,7 @@ void point_to_plane(const Eigen::MatrixXf &X, const Eigen::MatrixXf &Y, const Ei
     /// De-mean
     Eigen::RowVector3f xMean;
     for (int i = 0; i < 3; ++i)
-        xMean(i) = (X.col(i).array() * wNormalized.transpose().array()).sum();
+        xMean(i) = (X.col(i).transpose() * wNormalized).sum();
     Eigen::MatrixXf cX = X.rowwise() - xMean;
 
     /// Prepare LHS and RHS
