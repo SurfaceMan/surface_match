@@ -243,6 +243,8 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
     Timer              t2("scene ppf");
     std::vector<Pose>  poseList;
     std::vector<float> item(angleNum, 0);
+    auto               end    = hashTable.end();
+    float              maxIdx = maxAngleIndex;
 #pragma omp parallel for
     for (int count = 0; count < keypoint.size(); count++) {
         auto  pointIndex = keypoint[ count ];
@@ -285,11 +287,11 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
         for (std::size_t j = 1; j < indices.size(); j++) {
             float alphaScene = alpha[ j - 1 ];
             auto  hash       = ppf[ j - 1 ];
-            if (hashTable.find(hash) == hashTable.end() || isnan(alphaScene))
+            auto  iter       = hashTable.find(hash);
+            if (iter == end || isnan(alphaScene))
                 continue;
 
-            auto &nodeList = hashTable[ hash ];
-            for (auto &feature : nodeList) {
+            for (auto &feature : iter->second) {
                 auto &alphaModel = feature.alphaAngle;
                 float alphaAngle = alphaModel - alphaScene;
                 if (alphaAngle > (float)M_PI)
@@ -297,7 +299,7 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
                 else if (alphaAngle < (float)(-M_PI))
                     alphaAngle = alphaAngle + M_2PI;
 
-                int   angleIndex = round(maxAngleIndex * (alphaAngle + (float)M_PI) / M_2PI);
+                int   angleIndex = floor(maxIdx * (alphaAngle / M_2PI + 0.5f));
                 auto &iter       = accumulator[ feature.refInd ];
                 iter.first++;
                 iter.second[ angleIndex ] += feature.voteValue;
