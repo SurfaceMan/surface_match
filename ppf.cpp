@@ -243,9 +243,12 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
     Timer              t2("scene ppf");
     std::vector<Pose>  poseList;
     std::vector<float> item(angleNum, 0);
-    auto               end    = hashTable.end();
-    float              maxIdx = maxAngleIndex;
-#pragma omp parallel for
+    auto               end            = hashTable.end();
+    float              maxIdx         = maxAngleIndex;
+    auto               accElementSize = angleNum + 1;
+    auto               accSize        = refNum * accElementSize;
+    std::vector<int>   accumulator(accSize);
+#pragma omp parallel for firstprivate(accumulator)
     for (int count = 0; count < keypoint.size(); count++) {
         auto  pointIndex = keypoint[ count ];
         auto &p1         = scene.point[ pointIndex ];
@@ -287,7 +290,7 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
         auto ppf   = computePPF(p1, n1, px, py, pz, nx, ny, nz, angleStep, distanceStep);
         auto rt    = transformRT(p1, n1);
         auto alpha = computeAlpha(rt, px, py, pz);
-        std::vector<std::pair<int, std::vector<float>>> accumulator(refNum, {0, item});
+        memset(accumulator.data(), 0, accSize * sizeof(int));
         for (std::size_t j = 0; j < ppf.size(); j++) {
             float alphaScene = alpha[ j ];
             auto  hash       = ppf[ j ];
@@ -303,10 +306,10 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
                 else if (alphaAngle < (float)(-M_PI))
                     alphaAngle = alphaAngle + M_2PI;
 
-                int   angleIndex = floor(maxIdx * (alphaAngle / M_2PI + 0.5f));
-                auto &iter       = accumulator[ feature.refInd ];
-                iter.first++;
-                iter.second[ angleIndex ] += feature.voteValue;
+                int  angleIndex = floor(maxIdx * (alphaAngle / M_2PI + 0.5f));
+                auto iter       = &accumulator[ feature.refInd * accElementSize ];
+                iter[ 0 ]++;
+                iter[ angleIndex + 1 ]++;
             }
         }
 
@@ -316,19 +319,22 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
 
         auto      thre       = voteThreshold / 2.0f;
         const int countLimit = 3;
-        for (int i = 0; i < accumulator.size(); i++) {
-            if (accumulator[ i ].first < thre)
+        for (int i = 0; i < refNum; i++) {
+            auto element = &accumulator[ i * accElementSize ];
+
+            if (element[ 0 ] < thre)
                 continue;
 
-            auto &angles = accumulator[ i ].second;
-            auto  iter   = std::max_element(angles.begin(), angles.end());
-            int   j      = iter - angles.begin();
-            auto  vote   = *iter;
+            auto begin = element + 1;
+            auto end   = begin + angleNum;
+            auto iter  = std::max_element(begin, end);
+            int  j     = iter - begin;
+            auto vote  = *iter;
             if (vote < thre)
                 continue;
 
-            vote += (j == 0) ? angles[ maxAngleIndex ] : angles[ j - 1 ];
-            vote += (j == maxAngleIndex) ? angles[ 0 ] : angles[ j + 1 ];
+            vote += (j == 0) ? begin[ maxAngleIndex ] : begin[ j - 1 ];
+            vote += (j == maxAngleIndex) ? begin[ 0 ] : begin[ j + 1 ];
 
             maxVal.emplace(vote, i, j);
             if (maxVal.size() > countLimit)
