@@ -257,7 +257,7 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
         //[3] vote
         std::vector<std::pair<int, float>> indices;
         auto searched = sceneKdtree.index->radiusSearch(&p1[ 0 ], squaredDiameter, indices,
-                                                        nanoflann::SearchParams());
+                                                        nanoflann::SearchParams(32, 0, false));
         if (searched < voteThreshold)
             continue;
 
@@ -268,25 +268,29 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
         vectorF nx(rows);
         vectorF ny(rows);
         vectorF nz(rows);
-        for (std::size_t i = 0; i < rows; i++) {
-            pointIndex = indices[ i + 1 ].first;
-            auto &p    = scene.point[ pointIndex ];
-            auto &n    = scene.normal[ pointIndex ];
-            px[ i ]    = p.x();
-            py[ i ]    = p.y();
-            pz[ i ]    = p.z();
-            nx[ i ]    = n.x();
-            ny[ i ]    = n.y();
-            nz[ i ]    = n.z();
+        int     i = 0;
+        for (auto &[ idx, dist ] : indices) {
+            if (pointIndex == idx)
+                continue;
+
+            auto &p = scene.point[ idx ];
+            auto &n = scene.normal[ idx ];
+            px[ i ] = p.x();
+            py[ i ] = p.y();
+            pz[ i ] = p.z();
+            nx[ i ] = n.x();
+            ny[ i ] = n.y();
+            nz[ i ] = n.z();
+            i++;
         }
 
         auto ppf   = computePPF(p1, n1, px, py, pz, nx, ny, nz, angleStep, distanceStep);
         auto rt    = transformRT(p1, n1);
         auto alpha = computeAlpha(rt, px, py, pz);
         std::vector<std::pair<int, std::vector<float>>> accumulator(refNum, {0, item});
-        for (std::size_t j = 1; j < indices.size(); j++) {
-            float alphaScene = alpha[ j - 1 ];
-            auto  hash       = ppf[ j - 1 ];
+        for (std::size_t j = 0; j < ppf.size(); j++) {
+            float alphaScene = alpha[ j ];
+            auto  hash       = ppf[ j ];
             auto  iter       = hashTable.find(hash);
             if (iter == end || isnan(alphaScene))
                 continue;
