@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
         ppf::Detector detector;
         detector.load("1.model");
         detector.matchScene(scene, pose, score, 0.025f, 0.1f, 0.1f,
-                            ppf::MatchParam{0.1, 35, 10, true, false, 0.5, 0, true, true, 15, 0.3},
+                            ppf::MatchParam{55, 10, true, false, 0.5, 0, true, true, 15, 0.3},
                             &result);
     }
 

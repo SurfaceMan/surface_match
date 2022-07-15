@@ -216,7 +216,7 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
               << "scene keypoint point size:" << keypoint.size() << std::endl;
 
     //[2.3] data from param
-    float voteThreshold  = refNum * param.voteThresholdFraction;
+    float voteThreshold  = refNum * minScore;
     float maxOverlapDist = 0;
     if (param.maxOverlapDistRel > 0)
         maxOverlapDist = modelDiameter * param.maxOverlapDistRel;
