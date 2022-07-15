@@ -4,11 +4,10 @@
 #include <util.h>
 
 namespace ppf {
-ConvergenceCriteria::ConvergenceCriteria(int iterations_, float rejectDist_, float inlinerDist_,
-                                         float mseMin_, float mseMax_, float tolerance_)
+ConvergenceCriteria::ConvergenceCriteria(int iterations_, float rejectDist_, float mseMin_,
+                                         float mseMax_, float tolerance_)
     : iterations(iterations_)
     , rejectDist(rejectDist_)
-    , inlinerDist(inlinerDist_)
     , mseMin(mseMin_)
     , mseMax(mseMax_)
     , tolerance(tolerance_) {
@@ -20,7 +19,6 @@ ConvergenceResult::ConvergenceResult()
     , mse(std::numeric_limits<float>::max())
     , convergeRate(1)
     , iterations(0)
-    , inliner(0)
     , converged(false) {
 }
 
@@ -195,21 +193,6 @@ IterResult iteration(const PointCloud &srcPC, const PointCloud &dstPC, const KDT
     return IterResult{p, modelScenePair.first.size(), mse};
 }
 
-int inliner(const PointCloud &srcPC, const KDTree &kdtree, float inlineDist) {
-    std::vector<int>   indices;
-    std::vector<float> distances;
-    findClosestPoint(kdtree, srcPC, indices, distances);
-
-    int   result            = 0;
-    float inlineDistSquared = inlineDist * inlineDist;
-    for (auto &dist : distances) {
-        if (dist < inlineDistSquared)
-            result++;
-    }
-
-    return result;
-}
-
 ConvergenceResult ICP::regist(const PointCloud &src, const PointCloud &dst,
                               const Eigen::Matrix4f &initPose) const {
     return regist(src, dst, std::vector<Eigen::Matrix4f>{initPose})[ 0 ];
@@ -233,9 +216,8 @@ std::vector<ConvergenceResult> ICP::regist(const PointCloud &src, const PointClo
     if (!src.hasNormal() || !dst.hasNormal())
         throw std::runtime_error("PointCloud empty or no normal at ICP::regist");
 
-    if (criteria_.iterations < 1 || criteria_.inlinerDist < 0 || criteria_.mseMin < 0 ||
-        criteria_.mseMax < criteria_.mseMin || criteria_.tolerance > 1 || criteria_.tolerance < 0 ||
-        criteria_.rejectDist < 0)
+    if (criteria_.iterations < 1 || criteria_.mseMin < 0 || criteria_.mseMax < criteria_.mseMin ||
+        criteria_.tolerance > 1 || criteria_.tolerance < 0 || criteria_.rejectDist < 0)
         throw std::runtime_error("Invalid ConvergenceCriteria at ICP::regist");
 
     std::vector<ConvergenceResult> results(initPoses.size());
@@ -282,11 +264,8 @@ std::vector<ConvergenceResult> ICP::regist(const PointCloud &src, const PointClo
                 }
             }
 
-            if (stop) {
-                auto pct       = transformPointCloud(src, result.pose, false);
-                result.inliner = inliner(pct, kdtree, criteria_.inlinerDist);
+            if (stop)
                 break;
-            }
 
             srcTmp = transformPointCloud(srcTmp, tmpResult.pose, true);
         }

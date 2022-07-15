@@ -625,6 +625,21 @@ void findClosestPoint(const KDTree &kdtree, const PointCloud &srcPC, std::vector
     distances = std::move(distancesTmp);
 }
 
+int inliner(const PointCloud &srcPC, const KDTree &kdtree, float inlineDist) {
+    std::vector<int>   indices;
+    std::vector<float> distances;
+    findClosestPoint(kdtree, srcPC, indices, distances);
+
+    int   result            = 0;
+    float inlineDistSquared = inlineDist * inlineDist;
+    for (auto &dist : distances) {
+        if (dist < inlineDistSquared)
+            result++;
+    }
+
+    return result;
+}
+
 uint32_t murmurhash3(const int *key, uint32_t len, uint32_t seed) {
     static const uint32_t c1      = 0xcc9e2d51;
     static const uint32_t c2      = 0x1b873593;

@@ -42,6 +42,8 @@ std::vector<Pose> avgClusters(const std::vector<std::vector<Pose>> &clusters);
 void findClosestPoint(const KDTree &kdtree, const PointCloud &srcPC, std::vector<int> &indices,
                       std::vector<float> &distances);
 
+int inliner(const PointCloud &srcPC, const KDTree &kdtree, float inlineDist);
+
 vectorI computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &n1, const vectorF &p2x,
                    const vectorF &p2y, const vectorF &p2z, const vectorF &n2x, const vectorF &n2y,
                    const vectorF &n2z, float angleStep, float distStep);

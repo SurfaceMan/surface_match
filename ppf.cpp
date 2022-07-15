@@ -373,11 +373,10 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
     std::cout << "after cluster has items: " << cluster2.size() << std::endl;
 
     //[6] icp
-    ICP sparseIcp(
-        ConvergenceCriteria(5, poseRefDistThreshold, sampleStep, sampleStep * 0.5, sampleStep));
+    ICP  sparseIcp(ConvergenceCriteria(5, poseRefDistThreshold, sampleStep * 0.5, sampleStep));
     auto sampleMax = std::min(sampleStep, (reSampleStep * 1.5f));
     ICP  denseIcp(ConvergenceCriteria(param.poseRefNumSteps, poseRefDistThreshold,
-                                      poseRefScoringDist, reSampleStep * 0.5, sampleMax));
+                                      reSampleStep * 0.5, sampleStep));
 
     std::vector<int> indicesOfSampleScene2;
     if (param.densePoseRefinement) {
@@ -407,8 +406,11 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
                 continue;
             }
 
-            pose  = refined.pose;
-            score = refined.inliner / float(refNum);
+            pose = refined.pose;
+            sceneKdtree.restore();
+            auto inlinerCount = inliner(transformPointCloud(impl_->sampledModel, pose, false),
+                                        sceneKdtree, poseRefScoringDist);
+            score             = inlinerCount / float(refNum);
             if (score > 1.f)
                 score = 1.f;
 
@@ -427,8 +429,11 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
                 continue;
             }
 
-            pose  = refined.pose;
-            score = refined.inliner / float(impl_->reSampledModel.point.size());
+            pose = refined.pose;
+            sceneKdtree.restore();
+            auto inlinerCount = inliner(transformPointCloud(impl_->reSampledModel, pose, false),
+                                        sceneKdtree, poseRefScoringDist);
+            score             = inlinerCount / float(impl_->reSampledModel.point.size());
             if (score > 1.f)
                 score = 1.f;
 

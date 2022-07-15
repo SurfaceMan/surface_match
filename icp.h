@@ -11,16 +11,14 @@ public:
      *
      * @param iterations max iterations for optimization
      * @param rejectDist rejection for corresponding set
-     * @param inlinerDist inliner threshold distance
      * @param mseMin min mean-squared-error
      * @param mseMax max mean-squared-error indicate whether be converged
      * @param tolerance min converge rate
      */
-    ConvergenceCriteria(int iterations, float rejectDist, float inlinerDist, float mseMin,
-                        float mseMax, float tolerance = 0.05f);
+    ConvergenceCriteria(int iterations, float rejectDist, float mseMin, float mseMax,
+                        float tolerance = 0.05f);
     int   iterations;
     float rejectDist;
-    float inlinerDist;
     float mseMin;
     float mseMax;
     float tolerance;
@@ -42,7 +40,6 @@ struct ConvergenceResult {
     float mse;          // last mse
     float convergeRate; // last converge rate
     int   iterations;   // last iteration
-    int   inliner;      // last number of points inliner
     bool  converged;    // whether be converged
 };
 
