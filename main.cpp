@@ -24,10 +24,11 @@ int main(int argc, char *argv[]) {
     std::vector<Eigen::Matrix4f> pose;
     std::vector<float>           score;
     ppf::MatchResult             result;
+    ppf::Detector                detector;
+    detector.load("1.model");
     {
-        ppf::Timer    t("match scene");
-        ppf::Detector detector;
-        detector.load("1.model");
+        ppf::Timer t("match scene");
+
         detector.matchScene(scene, pose, score, 0.025f, 0.1f, 0.1f,
                             ppf::MatchParam{55, 10, true, false, 0.5, 0, true, true, 15, 0.3},
                             &result);

@@ -196,6 +196,7 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
     float            sampleStep = modelDiameter * samplingDistanceRel;
     std::vector<int> indicesOfSampleScene;
     auto sampledIndices = samplePointCloud(sceneKdtree, sampleStep, &indicesOfSampleScene);
+    t1.release();
     if (!hasNormal) {
         Timer t("scene compute normal");
         estimateNormal(scene, sampledIndices, sceneKdtree, param.knnNormal, param.smoothNormal,
@@ -204,7 +205,6 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
         Timer t("scene normalize normal");
         normalizeNormal(scene);
     }
-    t1.release();
     Timer t3("scene sample2");
     sceneKdtree.reduce(indicesOfSampleScene);
     float keySampleStep = sqrtf(1.f / keyPointFraction) * sampleStep;
