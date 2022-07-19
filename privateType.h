@@ -14,14 +14,12 @@ public:
 
     Feature()
         : refInd(0)
-        , alphaAngle(0)
-        , voteValue(0) {
+        , alphaAngle(0) {
     }
 
-    Feature(int refInd_, float alphaAngle_, float voteValue_)
+    Feature(int refInd_, float alphaAngle_)
         : refInd(refInd_)
-        , alphaAngle(alphaAngle_)
-        , voteValue(voteValue_) {
+        , alphaAngle(alphaAngle_) {
     }
 };
 

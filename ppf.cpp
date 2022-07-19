@@ -135,7 +135,7 @@ void Detector::trainModel(const ppf::PointCloud &model_, float samplingDistanceR
             if (i == j || isnan(alpha[ j ]))
                 continue;
 #pragma omp critical
-            { hashTable[ ppf[ j ] ].emplace_back(i, alpha[ j ], 1); }
+            { hashTable[ ppf[ j ] ].emplace_back(i, alpha[ j ]); }
         }
     }
     t3.release();

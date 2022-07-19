@@ -88,13 +88,11 @@ void serialize(std::ostream *os, const PointCloud &val) {
 void deserialize(std::istream *is, Feature &val) {
     deserialize(is, val.refInd);
     deserialize(is, val.alphaAngle);
-    deserialize(is, val.voteValue);
 }
 
 void serialize(std::ostream *os, const Feature &val) {
     serialize(os, val.refInd);
     serialize(os, val.alphaAngle);
-    serialize(os, val.voteValue);
 }
 
 void deserialize(std::istream *is, std::vector<Feature> &val) {
