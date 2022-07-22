@@ -18,13 +18,16 @@
 
 namespace ppf {
 
-const int VERSION = 100;
-const int MAGIC   = 0x7F27F;
-
-const float M_2PI = 2 * M_PI;
+const int   VERSION    = 100;
+const int   MAGIC      = 0x7F27F;
+const int   maxThreads = 8;
+const float M_2PI      = 2 * M_PI;
 
 Detector::Detector()
     : impl_(nullptr) {
+    auto numThreads = omp_get_max_threads();
+    if (numThreads > maxThreads)
+        omp_set_num_threads(maxThreads);
 }
 
 Detector::~Detector() {
