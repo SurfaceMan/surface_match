@@ -122,7 +122,7 @@ void Detector::trainModel(const ppf::PointCloud &model_, float samplingDistanceR
         nz[ i ] = n.z();
     }
 
-    std::unordered_map<uint32_t, std::vector<Feature>> hashTable;
+    gtl::flat_hash_map<uint32_t, std::vector<Feature>> hashTable;
 #pragma omp parallel for
     for (int i = 0; i < size; i++) {
         auto &p1 = sampledModel.point[ i ];

@@ -39,8 +39,8 @@ void serialize(std::ostream *os, const std::vector<Feature> &val);
 void deserialize(std::istream *is, std::pair<uint32_t, std::vector<Feature>> &val);
 void serialize(std::ostream *os, const std::pair<uint32_t, std::vector<Feature>> &val);
 
-void deserialize(std::istream *is, std::unordered_map<uint32_t, std::vector<Feature>> &val);
-void serialize(std::ostream *os, const std::unordered_map<uint32_t, std::vector<Feature>> &val);
+void deserialize(std::istream *is, gtl::flat_hash_map<uint32_t, std::vector<Feature>> &val);
+void serialize(std::ostream *os, const gtl::flat_hash_map<uint32_t, std::vector<Feature>> &val);
 
 void deserialize(std::istream *is, TrainParam &val);
 void serialize(std::ostream *os, const TrainParam &val);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Eigen/Geometry>
+#include <gtl/phmap.hpp>
 #include <kdtree.h>
 #include <ppf.h>
 #include <xsimd/xsimd.hpp>
@@ -45,7 +46,7 @@ public:
     PointCloud sampledModel;
     PointCloud reSampledModel;
 
-    std::unordered_map<uint32_t, std::vector<Feature>> hashTable;
+    gtl::flat_hash_map<uint32_t, std::vector<Feature>> hashTable;
 };
 
 struct Pose {

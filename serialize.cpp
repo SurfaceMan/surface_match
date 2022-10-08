@@ -120,7 +120,7 @@ void serialize(std::ostream *os, const std::pair<uint32_t, std::vector<Feature>>
     serialize(os, val.second);
 }
 
-void deserialize(std::istream *is, std::unordered_map<uint32_t, std::vector<Feature>> &val) {
+void deserialize(std::istream *is, gtl::flat_hash_map<uint32_t, std::vector<Feature>> &val) {
     val.clear();
     uint32_t size;
     deserialize(is, size);
@@ -131,7 +131,7 @@ void deserialize(std::istream *is, std::unordered_map<uint32_t, std::vector<Feat
     }
 }
 
-void serialize(std::ostream *os, const std::unordered_map<uint32_t, std::vector<Feature>> &val) {
+void serialize(std::ostream *os, const gtl::flat_hash_map<uint32_t, std::vector<Feature>> &val) {
     uint32_t size = val.size();
     serialize(os, size);
     for (auto &itm : val) {

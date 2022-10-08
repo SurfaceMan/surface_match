@@ -3,8 +3,17 @@ project(ppf)
 
 set(CMAKE_CXX_STANDARD 17)
 
-#find OpenMP 
+include(FetchContent)
+FetchContent_Declare(
+    gtl
+    GIT_REPOSITORY https://github.com/greg7mdp/gtl.git
+    GIT_TAG v1.1.5 # adjust tag/branch/commit as needed
+)
+FetchContent_MakeAvailable(gtl)
+
+# find OpenMP
 find_package(OpenMP REQUIRED)
+
 if(OPENMP_FOUND)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
@@ -22,18 +31,18 @@ add_library(ppf SHARED
     filePLY.h filePLY.cpp ${RPLY_SOURCE} serialize.h serialize.cpp privateType.h
 )
 
-target_include_directories(ppf PRIVATE 
+target_include_directories(ppf PRIVATE
     ${KDTREE_INCLUDE_DIRS}
     ${XSIMD_INCLUDE_DIRS}
     ${EIGEN3_INCLUDE_DIRS}
     ${RPLY_INCLUDE_DIRS}
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
-target_link_libraries(ppf PUBLIC OpenMP::OpenMP_CXX)
-target_compile_options(ppf PRIVATE 
-	$<$<CXX_COMPILER_ID:MSVC>:/bigobj /arch:AVX2> 
-	$<$<CXX_COMPILER_ID:GNU>:-Wa, -mavx -fPIC -fvisibility=hidden -Wl,--exclude-libs,ALL>
-) 
+target_link_libraries(ppf PUBLIC OpenMP::OpenMP_CXX gtl)
+target_compile_options(ppf PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/bigobj /arch:AVX2>
+    $<$<CXX_COMPILER_ID:GNU>:-Wa, -mavx -fPIC -fvisibility=hidden -Wl,--exclude-libs,ALL>
+)
 target_compile_definitions(ppf PUBLIC API_EXPORTS)
 
 add_library(ppf::ppf ALIAS ppf)
@@ -41,10 +50,11 @@ set_property(TARGET ppf PROPERTY EXPORT_NAME ppf::ppf)
 
 install(FILES ppf.h type.h apiExport.h filePLY.h util.h TYPE INCLUDE)
 install(TARGETS ppf EXPORT ppf LIBRARY)
-#install(EXPORT ppf FILE ppfTargets.cmake DESTINATION lib/cmake/)
-#install(EXPORT ppf FILE ppf-config.cmake DESTINATION lib/cmake/)
 
+# install(EXPORT ppf FILE ppfTargets.cmake DESTINATION lib/cmake/)
+# install(EXPORT ppf FILE ppf-config.cmake DESTINATION lib/cmake/)
 option(BUILD_EXAMPLE "build example" ON)
+
 if(BUILD_EXAMPLE)
     add_executable(test_ppf main.cpp)
     target_include_directories(test_ppf PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${EIGEN3_INCLUDE_DIRS})
