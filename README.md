@@ -38,3 +38,8 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 ```
+## sample:
+![gear](img/gear.png)
+
+download [ gears model](https://download.ensenso.com/s/sampledata/download?files=gear.stl) (convert to ply first) and 
+[gears scene](https://download.ensenso.com/s/sampledata/download?files=gear_n35.ply)
