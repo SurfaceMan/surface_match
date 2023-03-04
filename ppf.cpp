@@ -244,15 +244,14 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
         matchResult->sampledScene = extraIndices(scene, sampledIndices);
     }
 
-    Timer              t2("scene ppf");
-    std::vector<Pose>  poseList;
-    std::vector<float> item(angleNum, 0);
-    auto               end            = hashTable.end();
-    float              maxIdx         = maxAngleIndex;
-    auto               accElementSize = angleNum + 1;
-    auto               accSize        = refNum * accElementSize;
-    std::vector<int>   accumulator(accSize);
-    // #pragma omp parallel for firstprivate(accumulator)
+    Timer             t2("scene ppf");
+    std::vector<Pose> poseList;
+    auto              end            = hashTable.end();
+    float             maxIdx         = maxAngleIndex;
+    auto              accElementSize = angleNum + 1;
+    auto              accSize        = refNum * accElementSize;
+    std::vector<int>  accumulator(accSize);
+#pragma omp parallel for firstprivate(accumulator)
     for (int count = 0; count < keypoint.size(); count++) {
         auto  pointIndex = keypoint[ count ];
         auto &p1         = scene.point[ pointIndex ];
@@ -264,7 +263,7 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
         //[3] vote
         std::vector<std::pair<int, float>> indices;
         auto searched = sceneKdtree.index->radiusSearch(&p1[ 0 ], squaredDiameter, indices,
-                                                        nanoflann::SearchParams(32, 0, false));
+                                                                                      nanoflann::SearchParams(32, 0, false));
         if (searched < voteThreshold)
             continue;
 
@@ -296,12 +295,12 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
         auto alpha = computeAlpha(rt, px, py, pz);
         memset(accumulator.data(), 0, accSize * sizeof(int));
 
-        px.resize(0);
-        py.resize(0);
-        pz.resize(0);
-        nx.resize(0);
-        ny.resize(0);
-        nz.resize(0);
+        // px.resize(0);
+        // py.resize(0);
+        // pz.resize(0);
+        // nx.resize(0);
+        // ny.resize(0);
+        // nz.resize(0);
 
         for (std::size_t j = 0; j < ppf.size(); j++) {
             float alphaScene = alpha[ j ];
@@ -324,21 +323,28 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
             for (int i = 0; i < vec_size; i += simd_size) {
                 auto vAngle      = xsimd::load(&angle[ i ]);
                 auto vAlphaAngle = vAngle - vSceneAngle;
-                auto vAlpha      = xsimd::select(vAlphaAngle > 0, vAlphaAngle, vAlphaAngle + v2pi);
-                auto angleIndex  = xsimd::floor(vMaxId * vAlpha / vpi);
-                xsimd::store(&idxAngle[ i ], xsimd::batch_cast<uint32_t>(angleIndex));
+                auto vAlpha     = xsimd::select(vAlphaAngle > vpi, vAlphaAngle - v2pi, vAlphaAngle);
+                vAlpha          = xsimd::select(vAlpha < -vpi, vAlpha + v2pi, vAlpha);
+                auto vId        = vMaxId * (vAlpha / v2pi + 0.5f);
+                auto vId2       = xsimd::floor(vId);
+                auto angleIndex = xsimd::batch_cast<uint32_t>(vId2);
+                xsimd::store_aligned(&idxAngle[ i ], angleIndex);
             }
 
             for (int i = vec_size; i < size; i++) {
                 float alphaAngle = angle[ i ] - alphaScene;
-                if (alphaAngle < 0)
+                if (alphaAngle < -M_PI)
                     alphaAngle += M_2PI;
-                idxAngle[ i ] = floor(maxIdx * alphaAngle / M_2PI);
+                if (alphaAngle > M_PI)
+                    alphaAngle -= M_2PI;
+                idxAngle[ i ] = floor(maxIdx * (alphaAngle / M_2PI + 0.5f));
             }
 
             for (int i = 0; i < size; i++) {
                 auto iter = &accumulator[ id[ i ] * accElementSize ];
                 iter[ 0 ]++;
+
+                //auto iii = idxAngle[ i ];
                 iter[ idxAngle[ i ] + 1 ]++;
             }
 
