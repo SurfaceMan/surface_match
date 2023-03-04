@@ -41,7 +41,7 @@ target_include_directories(ppf PRIVATE
 target_link_libraries(ppf PUBLIC OpenMP::OpenMP_CXX gtl)
 target_compile_options(ppf PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/bigobj /arch:AVX2>
-    $<$<CXX_COMPILER_ID:GNU>:-Wa, -mavx -fPIC -fvisibility=hidden -Wl,--exclude-libs,ALL>
+    $<$<CXX_COMPILER_ID:GNU>: -mavx -fPIC -fvisibility=hidden -Wl,--exclude-libs,ALL>
 )
 target_compile_definitions(ppf PUBLIC API_EXPORTS)
 
