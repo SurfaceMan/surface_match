@@ -303,13 +303,6 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
         auto alpha = computeAlpha(rt, px, py, pz);
         memset(accumulator.data(), 0, accSize * sizeof(int));
 
-        // px.resize(0);
-        // py.resize(0);
-        // pz.resize(0);
-        // nx.resize(0);
-        // ny.resize(0);
-        // nz.resize(0);
-
         for (std::size_t j = 0; j < ppf.size(); j++) {
             float alphaScene = alpha[ j ];
             auto  hash       = ppf[ j ];
@@ -324,25 +317,26 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
             std::size_t           vec_size  = size - size % simd_size;
 
             vectorI idxAngle(size);
-            auto    vSceneAngle = xsimd::broadcast(alphaScene);
+            auto    vSceneAngle = xsimd::broadcast(alphaScene) - vpi;
             for (int i = 0; i < vec_size; i += simd_size) {
                 auto vAngle      = xsimd::load(&angle[ i ]);
                 auto vAlphaAngle = vAngle - vSceneAngle;
-                auto vAlpha = xsimd::select(vAlphaAngle > vpi, vAlphaAngle - v2pi, vAlphaAngle);
-                vAlpha      = xsimd::select(vAlpha < -vpi, vAlpha + v2pi, vAlpha);
+                auto vAlpha = xsimd::select(vAlphaAngle > v2pi, vAlphaAngle - v2pi, vAlphaAngle);
+                vAlpha      = xsimd::select(vAlpha < 0, vAlpha + v2pi, vAlpha);
 
-                auto vId        = xsimd::fma(vMaxId, vAlpha, vMaxIdHalf);
+                auto vId        = vMaxId * vAlpha; // xsimd::fma(vMaxId, vAlpha, vMaxIdHalf);
                 auto angleIndex = xsimd::batch_cast<uint32_t>(xsimd::floor(vId));
                 xsimd::store_aligned(&idxAngle[ i ], angleIndex);
             }
 
+            alphaScene -= M_PI;
             for (int i = vec_size; i < size; i++) {
                 float alphaAngle = angle[ i ] - alphaScene;
-                if (alphaAngle < -M_PI)
+                if (alphaAngle < 0)
                     alphaAngle += M_2PI;
-                if (alphaAngle > M_PI)
+                if (alphaAngle > M_2PI)
                     alphaAngle -= M_2PI;
-                idxAngle[ i ] = floor(sMaxId * alphaAngle + maxIdHalf);
+                idxAngle[ i ] = floor(sMaxId * alphaAngle);
             }
 
             for (int i = 0; i < size; i++) {
