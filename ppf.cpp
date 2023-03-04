@@ -122,7 +122,7 @@ void Detector::trainModel(const ppf::PointCloud &model_, float samplingDistanceR
         nz[ i ] = n.z();
     }
 
-    gtl::flat_hash_map<uint32_t, std::vector<Feature>> hashTable;
+    gtl::flat_hash_map<uint32_t, Feature> hashTable;
 #pragma omp parallel for
     for (int i = 0; i < size; i++) {
         auto &p1 = sampledModel.point[ i ];
@@ -138,7 +138,7 @@ void Detector::trainModel(const ppf::PointCloud &model_, float samplingDistanceR
             if (i == j || isnan(alpha[ j ]))
                 continue;
 #pragma omp critical
-            { hashTable[ ppf[ j ] ].emplace_back(i, alpha[ j ]); }
+            { hashTable[ ppf[ j ] ].push_back(i, alpha[ j ]); }
         }
     }
     t3.release();
@@ -252,7 +252,7 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
     auto               accElementSize = angleNum + 1;
     auto               accSize        = refNum * accElementSize;
     std::vector<int>   accumulator(accSize);
-#pragma omp parallel for firstprivate(accumulator)
+    // #pragma omp parallel for firstprivate(accumulator)
     for (int count = 0; count < keypoint.size(); count++) {
         auto  pointIndex = keypoint[ count ];
         auto &p1         = scene.point[ pointIndex ];
@@ -295,6 +295,14 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
         auto rt    = transformRT(p1, n1);
         auto alpha = computeAlpha(rt, px, py, pz);
         memset(accumulator.data(), 0, accSize * sizeof(int));
+
+        px.resize(0);
+        py.resize(0);
+        pz.resize(0);
+        nx.resize(0);
+        ny.resize(0);
+        nz.resize(0);
+
         for (std::size_t j = 0; j < ppf.size(); j++) {
             float alphaScene = alpha[ j ];
             auto  hash       = ppf[ j ];
@@ -302,7 +310,39 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
             if (iter == end || isnan(alphaScene))
                 continue;
 
-            for (auto &feature : iter->second) {
+            auto                 &angle     = iter->second.alphaAngle;
+            auto                 &id        = iter->second.refInd;
+            auto                  size      = angle.size();
+            constexpr std::size_t simd_size = xsimd::simd_type<float>::size;
+            std::size_t           vec_size  = size - size % simd_size;
+
+            vectorI idxAngle(size);
+            auto    vpi         = xsimd::broadcast((float)M_PI);
+            auto    v2pi        = xsimd::broadcast((float)M_2PI);
+            auto    vSceneAngle = xsimd::broadcast(alphaScene);
+            auto    vMaxId      = xsimd::broadcast(maxIdx);
+            for (int i = 0; i < vec_size; i += simd_size) {
+                auto vAngle      = xsimd::load(&angle[ i ]);
+                auto vAlphaAngle = vAngle - vSceneAngle;
+                auto vAlpha      = xsimd::select(vAlphaAngle > 0, vAlphaAngle, vAlphaAngle + v2pi);
+                auto angleIndex  = xsimd::floor(vMaxId * vAlpha / vpi);
+                xsimd::store(&idxAngle[ i ], xsimd::batch_cast<uint32_t>(angleIndex));
+            }
+
+            for (int i = vec_size; i < size; i++) {
+                float alphaAngle = angle[ i ] - alphaScene;
+                if (alphaAngle < 0)
+                    alphaAngle += M_2PI;
+                idxAngle[ i ] = floor(maxIdx * alphaAngle / M_2PI);
+            }
+
+            for (int i = 0; i < size; i++) {
+                auto iter = &accumulator[ id[ i ] * accElementSize ];
+                iter[ 0 ]++;
+                iter[ idxAngle[ i ] + 1 ]++;
+            }
+
+            /*for (auto &feature : iter->second) {
                 auto &alphaModel = feature.alphaAngle;
                 float alphaAngle = alphaModel - alphaScene;
                 if (alphaAngle > (float)M_PI)
@@ -314,7 +354,7 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
                 auto iter       = &accumulator[ feature.refInd * accElementSize ];
                 iter[ 0 ]++;
                 iter[ angleIndex + 1 ]++;
-            }
+            }*/
         }
 
         // [4]nms

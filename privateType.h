@@ -7,7 +7,11 @@
 #include <xsimd/xsimd.hpp>
 
 namespace ppf {
-struct Feature {
+
+using vectorF = std::vector<float, xsimd::aligned_allocator<float>>;
+using vectorI = std::vector<uint32_t, xsimd::aligned_allocator<uint32_t>>;
+
+/*struct Feature {
 public:
     int   refInd;
     float alphaAngle;
@@ -22,6 +26,18 @@ public:
         : refInd(refInd_)
         , alphaAngle(alphaAngle_) {
     }
+};*/
+
+struct Feature {
+public:
+    vectorI refInd;
+    vectorF alphaAngle;
+
+    void push_back(uint32_t index, float angle) {
+        refInd.push_back(index);
+        alphaAngle.push_back(angle);
+    }
+    // Feature &operator=(Feature &&rhs) noexcept;
 };
 
 struct Candidate {
@@ -46,7 +62,7 @@ public:
     PointCloud sampledModel;
     PointCloud reSampledModel;
 
-    gtl::flat_hash_map<uint32_t, std::vector<Feature>> hashTable;
+    gtl::flat_hash_map<uint32_t, Feature> hashTable;
 };
 
 struct Pose {
@@ -66,8 +82,4 @@ public:
 };
 
 using KDTree = KDTreeVectorOfVectorsAdaptor<std::vector<Eigen::Vector3f>, float>;
-
-using vectorF = std::vector<float, xsimd::aligned_allocator<float>>;
-using vectorI = std::vector<uint32_t, xsimd::aligned_allocator<uint32_t>>;
-
 } // namespace ppf

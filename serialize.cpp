@@ -85,6 +85,36 @@ void serialize(std::ostream *os, const PointCloud &val) {
     serialize(os, val.viewPoint);
 }
 
+void deserialize(std::istream *is, vectorI &val) {
+    uint32_t size;
+    deserialize(is, size);
+    val.resize(size);
+    for (auto &itm : val)
+        deserialize(is, itm);
+}
+
+void serialize(std::ostream *os, const vectorI &val) {
+    uint32_t size = val.size();
+    serialize(os, size);
+    for (auto &itm : val)
+        serialize(os, itm);
+}
+
+void deserialize(std::istream *is, vectorF &val) {
+    uint32_t size;
+    deserialize(is, size);
+    val.resize(size);
+    for (auto &itm : val)
+        deserialize(is, itm);
+}
+
+void serialize(std::ostream *os, const vectorF &val) {
+    uint32_t size = val.size();
+    serialize(os, size);
+    for (auto &itm : val)
+        serialize(os, itm);
+}
+
 void deserialize(std::istream *is, Feature &val) {
     deserialize(is, val.refInd);
     deserialize(is, val.alphaAngle);
@@ -110,28 +140,28 @@ void serialize(std::ostream *os, const std::vector<Feature> &val) {
         serialize(os, itm);
 }
 
-void deserialize(std::istream *is, std::pair<uint32_t, std::vector<Feature>> &val) {
+void deserialize(std::istream *is, std::pair<uint32_t, Feature> &val) {
     deserialize(is, val.first);
     deserialize(is, val.second);
 }
 
-void serialize(std::ostream *os, const std::pair<uint32_t, std::vector<Feature>> &val) {
+void serialize(std::ostream *os, const std::pair<uint32_t, Feature> &val) {
     serialize(os, val.first);
     serialize(os, val.second);
 }
 
-void deserialize(std::istream *is, gtl::flat_hash_map<uint32_t, std::vector<Feature>> &val) {
+void deserialize(std::istream *is, gtl::flat_hash_map<uint32_t, Feature> &val) {
     val.clear();
     uint32_t size;
     deserialize(is, size);
     for (uint32_t i = 0; i < size; i++) {
-        std::pair<uint32_t, std::vector<Feature>> itm;
+        std::pair<uint32_t, Feature> itm;
         deserialize(is, itm);
         val.emplace(std::move(itm));
     }
 }
 
-void serialize(std::ostream *os, const gtl::flat_hash_map<uint32_t, std::vector<Feature>> &val) {
+void serialize(std::ostream *os, const gtl::flat_hash_map<uint32_t, Feature> &val) {
     uint32_t size = val.size();
     serialize(os, size);
     for (auto &itm : val) {

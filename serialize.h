@@ -33,14 +33,14 @@ void serialize(std::ostream *os, const PointCloud &val);
 void deserialize(std::istream *is, Feature &val);
 void serialize(std::ostream *os, const Feature &val);
 
-void deserialize(std::istream *is, std::vector<Feature> &val);
-void serialize(std::ostream *os, const std::vector<Feature> &val);
+void deserialize(std::istream *is, Feature &val);
+void serialize(std::ostream *os, const Feature &val);
 
-void deserialize(std::istream *is, std::pair<uint32_t, std::vector<Feature>> &val);
-void serialize(std::ostream *os, const std::pair<uint32_t, std::vector<Feature>> &val);
+void deserialize(std::istream *is, std::pair<uint32_t, Feature> &val);
+void serialize(std::ostream *os, const std::pair<uint32_t, Feature> &val);
 
-void deserialize(std::istream *is, gtl::flat_hash_map<uint32_t, std::vector<Feature>> &val);
-void serialize(std::ostream *os, const gtl::flat_hash_map<uint32_t, std::vector<Feature>> &val);
+void deserialize(std::istream *is, gtl::flat_hash_map<uint32_t, Feature> &val);
+void serialize(std::ostream *os, const gtl::flat_hash_map<uint32_t, Feature> &val);
 
 void deserialize(std::istream *is, TrainParam &val);
 void serialize(std::ostream *os, const TrainParam &val);
