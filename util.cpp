@@ -5,15 +5,12 @@
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
-#include <Eigen/StdVector>
 
 #include <algorithm>
 #include <fstream>
-#include <iostream>
 #include <random>
 
-#define _USE_MATH_DEFINES
-#include <math.h>
+#include <cmath>
 
 namespace ppf {
 
@@ -51,7 +48,7 @@ PointCloud sampleMesh(const ppf::PointCloud &pc, float radius) {
 
     //
     std::random_device                    rd;
-    int                                   seed = rd();
+    auto                                  seed = rd();
     std::mt19937                          mt(seed);
     std::uniform_real_distribution<float> dist(0.0, 1.0);
     PointCloud                            result;
@@ -60,7 +57,7 @@ PointCloud sampleMesh(const ppf::PointCloud &pc, float radius) {
     result.normal.resize(nPoints);
     size_t pointIdx = 0;
     for (int i = 0; i < triangleSize; i++) {
-        size_t n = size_t(std::round(areas[ i ] * nPoints));
+        auto n = size_t(std::round(areas[ i ] * nPoints));
         while (pointIdx < n) {
             auto r1 = dist(mt);
             auto r2 = dist(mt);
@@ -281,7 +278,7 @@ void estimateNormal(ppf::PointCloud &pc, const std::vector<std::size_t> &indices
     for (int i = 0; i < size; i++) {
         auto  idx    = indices[ i ];
         auto &normal = pc.normal[ idx ];
-        auto &point  = pc.point[ idx ];
+        //auto &point  = pc.point[ idx ];
 
         std::vector<int> neighbor;
         computeNormal(pc, idx, tree, k, &neighbor);
@@ -318,7 +315,6 @@ void estimateNormal(ppf::PointCloud &pc, const std::vector<std::size_t> &indices
             auto &point  = pc.point[ idx ];
             if (check(normal.dot(pc.viewPoint - point)))
                 normal = -normal;
-            continue;
         }
     } else {
         // normal's direction default toward z axis
@@ -328,7 +324,6 @@ void estimateNormal(ppf::PointCloud &pc, const std::vector<std::size_t> &indices
             auto &normal = pc.normal[ idx ];
             if (check(normal.dot(Eigen::Vector3f::UnitZ())))
                 normal = -normal;
-            continue;
         }
     }
 }
@@ -562,16 +557,16 @@ Eigen::Quaternionf avgQuaternionMarkley(const std::vector<Eigen::Quaternionf> &q
 
     Eigen::EigenSolver<Eigen::Matrix4f> es(A);
     Eigen::MatrixXcf                    evecs =
-        es.eigenvectors(); //获取矩阵特征向量4*4，这里定义的MatrixXcd必须有c，表示获得的是complex复数矩阵
-    Eigen::MatrixXcf evals = es.eigenvalues(); //获取矩阵特征值 4*1
-    Eigen::MatrixXf  evalsReal;                //注意这里定义的MatrixXd里没有c
-    evalsReal = evals.real();                  //获取特征值实数部分
+        es.eigenvectors(); // 获取矩阵特征向量4*4，这里定义的MatrixXcd必须有c，表示获得的是complex复数矩阵
+    Eigen::MatrixXcf evals = es.eigenvalues(); // 获取矩阵特征值 4*1
+    Eigen::MatrixXf  evalsReal;                // 注意这里定义的MatrixXd里没有c
+    evalsReal = evals.real();                  // 获取特征值实数部分
     Eigen::MatrixXf::Index evalsMax;
-    evalsReal.rowwise().sum().maxCoeff(&evalsMax); //得到最大特征值的位置
+    evalsReal.rowwise().sum().maxCoeff(&evalsMax); // 得到最大特征值的位置
 
     Eigen::Vector4f q;
     q << evecs.real()(0, evalsMax), evecs.real()(1, evalsMax), evecs.real()(2, evalsMax),
-        evecs.real()(3, evalsMax); //得到对应特征向量
+        evecs.real()(3, evalsMax); // 得到对应特征向量
 
     return {q[ 0 ], q[ 1 ], q[ 2 ], q[ 3 ]};
 }
