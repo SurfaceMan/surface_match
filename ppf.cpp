@@ -252,12 +252,13 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
     auto              accSize        = refNum * accElementSize;
     std::vector<int>  accumulator(accSize);
 
-    auto vpi        = xsimd::broadcast((float)M_PI);
-    auto v2pi       = xsimd::broadcast((float)M_2PI);
-    auto sMaxId     = maxIdx / M_2PI;
-    auto vMaxId     = xsimd::broadcast(sMaxId);
-    auto maxIdHalf  = maxIdx * 0.5f;
-    auto vMaxIdHalf = xsimd::broadcast(maxIdHalf);
+    auto    vpi        = xsimd::broadcast((float)M_PI);
+    auto    v2pi       = xsimd::broadcast((float)M_2PI);
+    auto    sMaxId     = maxIdx / M_2PI;
+    auto    vMaxId     = xsimd::broadcast(sMaxId);
+    auto    maxIdHalf  = maxIdx * 0.5f;
+    auto    vMaxIdHalf = xsimd::broadcast(maxIdHalf);
+    vectorI idxAngle(1024);
 
 #pragma omp parallel for firstprivate(accumulator)
     for (int count = 0; count < keypoint.size(); count++) {
@@ -315,9 +316,10 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
             auto                  size      = angle.size();
             constexpr std::size_t simd_size = xsimd::simd_type<float>::size;
             std::size_t           vec_size  = size - size % simd_size;
+            if (size > 1024)
+                idxAngle.resize(size);
 
-            vectorI idxAngle(size);
-            auto    vSceneAngle = xsimd::broadcast(alphaScene) - vpi;
+            auto vSceneAngle = xsimd::broadcast(alphaScene) - vpi;
             for (int i = 0; i < vec_size; i += simd_size) {
                 auto vAngle      = xsimd::load(&angle[ i ]);
                 auto vAlphaAngle = vAngle - vSceneAngle;
@@ -325,7 +327,7 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
                 vAlpha      = xsimd::select(vAlpha < 0, vAlpha + v2pi, vAlpha);
 
                 auto vId        = vMaxId * vAlpha; // xsimd::fma(vMaxId, vAlpha, vMaxIdHalf);
-                auto angleIndex = xsimd::batch_cast<uint32_t>(xsimd::floor(vId));
+                auto angleIndex = xsimd::batch_cast<uint32_t>(xsimd::floor(vId)) + 1;
                 xsimd::store_aligned(&idxAngle[ i ], angleIndex);
             }
 
@@ -336,13 +338,13 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
                     alphaAngle += M_2PI;
                 if (alphaAngle > M_2PI)
                     alphaAngle -= M_2PI;
-                idxAngle[ i ] = floor(sMaxId * alphaAngle);
+                idxAngle[ i ] = floor(sMaxId * alphaAngle) + 1;
             }
 
             for (int i = 0; i < size; i++) {
                 auto iter = &accumulator[ id[ i ] * accElementSize ];
                 iter[ 0 ]++;
-                iter[ idxAngle[ i ] + 1 ]++;
+                iter[ idxAngle[ i ] ]++;
             }
 
             /*for (auto &feature : iter->second) {
