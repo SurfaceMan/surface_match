@@ -5,6 +5,9 @@
 
 namespace ppf {
 
+class Vector3F;
+class Vector3I;
+
 struct API_PUBLIC BoundingBox {
 public:
     Eigen::Vector3f min;
@@ -21,11 +24,14 @@ public:
 
 struct API_PUBLIC PointCloud {
 public:
-    std::vector<Eigen::Vector3f> point;
-    std::vector<Eigen::Vector3f> normal;
-    std::vector<Eigen::Vector3i> face;
-    BoundingBox                  box;
-    Eigen::Vector3f              viewPoint = Eigen::Vector3f(NAN, NAN, NAN);
+    Vector3F       *point;
+    Vector3F       *normal;
+    Vector3I       *face;
+    BoundingBox     box;
+    Eigen::Vector3f viewPoint = Eigen::Vector3f(NAN, NAN, NAN);
+
+    PointCloud();
+    ~PointCloud();
 
     bool        hasNormal() const;
     std::size_t size() const;

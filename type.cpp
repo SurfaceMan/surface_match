@@ -2,6 +2,8 @@
 #include <type.h>
 
 namespace ppf {
+template class Vector3I =  Vector3<int>;
+
 BoundingBox::BoundingBox()
     : min(Eigen::Vector3f::Zero())
     , max(Eigen::Vector3f::Zero()) {
@@ -31,6 +33,14 @@ Eigen::Vector3f BoundingBox::center() const {
 
 float BoundingBox::diameter() const {
     return size().norm();
+}
+
+PointCloud::PointCloud(){
+    point = new Vector3F;
+}
+
+PointCloud::~PointCloud(){
+
 }
 
 bool PointCloud::hasNormal() const {
