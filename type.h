@@ -1,41 +1,16 @@
 #pragma once
 
-#include <Eigen/Core>
-#include <vector>
+#include <apiExport.h>
 
 namespace ppf {
 
-class Vector3F;
-class Vector3I;
+class PointCloud;
 
-struct API_PUBLIC BoundingBox {
-public:
-    Eigen::Vector3f min;
-    Eigen::Vector3f max;
+using PointCloud_t = PointCloud *;
 
-    BoundingBox();
-    BoundingBox(Eigen::Vector3f min, Eigen::Vector3f max);
-    BoundingBox &operator=(const BoundingBox &rhs);
-
-    Eigen::Vector3f size() const;
-    Eigen::Vector3f center() const;
-    float           diameter() const;
-};
-
-struct API_PUBLIC PointCloud {
-public:
-    Vector3F       *point;
-    Vector3F       *normal;
-    Vector3I       *face;
-    BoundingBox     box;
-    Eigen::Vector3f viewPoint = Eigen::Vector3f(NAN, NAN, NAN);
-
-    PointCloud();
-    ~PointCloud();
-
-    bool        hasNormal() const;
-    std::size_t size() const;
-    bool        empty() const;
+struct MatchResult {
+    PointCloud_t sampledScene;
+    PointCloud_t keyPoint;
 };
 
 /**
@@ -180,10 +155,4 @@ public:
                         float poseRefDistThresholdRel = 0.1f, float poseRefDistThresholdAbs = 0,
                         float poseRefScoringDistRel = 0.01f, float poseRefScoringDistAbs = 0);
 };
-
-struct MatchResult {
-    PointCloud sampledScene;
-    PointCloud keyPoint;
-};
-
 } // namespace ppf

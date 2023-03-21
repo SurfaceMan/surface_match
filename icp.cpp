@@ -86,9 +86,8 @@ void symmetric_rigid_matching(const Eigen::MatrixXf &P, const Eigen::MatrixXf &Q
     t                  = (intermediate_R * intermediate_R * t1) + (intermediate_R * t2) + t3;
 }
 
-Eigen::Matrix4f minimizePointToPlaneMetric(
-    const PointCloud &srcPC, const PointCloud &dstPC,
-    const std::pair<std::vector<std::size_t>, std::vector<std::size_t>> &modelScenePair) {
+Eigen::Matrix4f minimizePointToPlaneMetric(const PointCloud &srcPC, const PointCloud &dstPC,
+                                           const std::pair<VectorI, VectorI> &modelScenePair) {
     auto size = modelScenePair.first.size();
 
     auto &modelIdx = modelScenePair.first;
@@ -99,10 +98,10 @@ Eigen::Matrix4f minimizePointToPlaneMetric(
     Eigen::MatrixXf NP = Eigen::MatrixXf::Zero(size, 3);
     Eigen::MatrixXf NQ = Eigen::MatrixXf::Zero(size, 3);
     for (int i = 0; i < size; i++) {
-        auto &p1 = srcPC.point[ modelIdx[ i ] ];
-        auto &n1 = srcPC.normal[ modelIdx[ i ] ];
-        auto &p2 = dstPC.point[ sceneIdx[ i ] ];
-        auto &n2 = dstPC.normal[ sceneIdx[ i ] ];
+        auto p1 = srcPC.point[ modelIdx[ i ] ];
+        auto n1 = srcPC.normal[ modelIdx[ i ] ];
+        auto p2 = dstPC.point[ sceneIdx[ i ] ];
+        auto n2 = dstPC.normal[ sceneIdx[ i ] ];
 
         P.row(i)  = p1.transpose();
         Q.row(i)  = p2.transpose();
@@ -120,9 +119,9 @@ Eigen::Matrix4f minimizePointToPlaneMetric(
     return rt.matrix();
 }
 
-std::pair<std::vector<std::size_t>, std::vector<std::size_t>>
-    findCorresponds(const PointCloud &srcPC, const KDTree &kdtree, float rejectDist) {
-    std::vector<int>   indicies;
+std::pair<VectorI, VectorI> findCorresponds(const PointCloud &srcPC, const KDTree &kdtree,
+                                            float rejectDist) {
+    VectorI            indicies;
     std::vector<float> distances;
     findClosestPoint(kdtree, srcPC, indicies, distances);
 
@@ -149,8 +148,8 @@ std::pair<std::vector<std::size_t>, std::vector<std::size_t>>
     }
 
     // find the closest model-scene point pair
-    auto                                                          size = map.size();
-    std::pair<std::vector<std::size_t>, std::vector<std::size_t>> result;
+    auto                        size = map.size();
+    std::pair<VectorI, VectorI> result;
     result.first.resize(size);
     result.second.resize(size);
 #pragma omp parallel for
@@ -181,7 +180,7 @@ IterResult iteration(const PointCloud &srcPC, const PointCloud &dstPC, const KDT
     auto p   = minimizePointToPlaneMetric(srcPC, dstPC, modelScenePair);
     auto pct = transformPointCloud(extraIndices(srcPC, modelScenePair.first), p, true);
 
-    std::vector<int>   indices2;
+    VectorI            indices2;
     std::vector<float> distances2;
     findClosestPoint(kdtree, pct, indices2, distances2);
 

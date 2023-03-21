@@ -1,20 +1,96 @@
 #pragma once
 
+#include <kdtree.h>
 #include <privateType.h>
 #include <type.h>
 
 namespace ppf {
-std::vector<std::size_t> samplePointCloud(const KDTree &tree, float sampleStep,
-                                          std::vector<int> *indicesOfIndices = nullptr);
 
-void estimateNormal(ppf::PointCloud &pc, const std::vector<std::size_t> &indices,
-                    const KDTree &kdtree, int k = 10, bool smooth = true, bool invert = false);
+/**
+ * @brief sampleMesh sample mesh by radius
+ * @param pc Input mesh
+ * @param radius Sampled point distance
+ * @return Sampled point cloud
+ */
+PointCloud sampleMesh(const ppf::PointCloud &pc, float radius);
 
-void estimateNormalMLS(ppf::PointCloud &pc, const std::vector<std::size_t> &indices,
-                       const KDTree &kdtree, float radius, int order, bool invert = false);
+/**
+ * @brief removeNan Check point cloud points or normals(if exists) is nan
+ * @param pc Input point cloud
+ * @param checkNormal Check normal or not
+ * @return Indices of element which is not nan
+ */
+VectorI removeNan(const ppf::PointCloud &pc, bool checkNormal = false);
 
+/**
+ * @brief extraIndices Select part of point cloud by indices
+ * @param pc Input point cloud
+ * @param indices Input indices
+ * @return Selected point cloud
+ */
+PointCloud extraIndices(const ppf::PointCloud &pc, const VectorI &indices);
+
+/**
+ * @brief normalizeNormal Normalize normal to range 0~1
+ * @param pc    Input/Output Point Cloud
+ * @param invert Invert normal direction
+ */
+void normalizeNormal(ppf::PointCloud &pc, bool invert = false);
+
+/**
+ * @brief computeBoundingBox Compute aligned bounding box
+ * @param pc Input point cloud
+ * @param validIndices Only compute these indices
+ * @return
+ */
+BoundingBox computeBoundingBox(const ppf::PointCloud &pc, const VectorI &validIndices = {});
+
+/**
+ * @brief samplePointCloud Sample point cloud by radius
+ * @param tree  KD-tree
+ * @param sampleStep Sample radius
+ * @param indicesOfIndices Indices of keeped indices in the order which build kdtree
+ * @return Indices of element which kepp
+ */
+VectorI samplePointCloud(const KDTree &tree, float sampleStep, VectorI *indicesOfIndices = nullptr);
+
+/**
+ * @brief estimateNormal Estimate normal of point cloud
+ * @param pc    Input point cloud
+ * @param indices   Which points to estiamte normal
+ * @param kdtree    Kdtree to find neighbor
+ * @param k The count of neighbors to compute normal
+ * @param smooth    Smooth normal by neighbor's normal
+ * @param invert    Invert normal direction
+ */
+void estimateNormal(ppf::PointCloud &pc, const VectorI &indices, const KDTree &kdtree, int k = 10,
+                    bool smooth = true, bool invert = false);
+
+/**
+ * @brief estimateNormalMLS Estimate normal of point cloud with MLS(Moving Least Squares)
+ * @param pc    Input point cloud
+ * @param indices   Which points to estiamte normal
+ * @param kdtree    Kdtree to find neighbor
+ * @param radius    The radius of neighbors to compute normal
+ * @param order
+ * @param invert    Invert normal direction
+ */
+void estimateNormalMLS(ppf::PointCloud &pc, const VectorI &indices, const KDTree &kdtree,
+                       float radius, int order, bool invert = false);
+
+/**
+ * @brief transformRT
+ * @param p
+ * @param n
+ * @return
+ */
 Eigen::Matrix4f transformRT(const Eigen::Vector3f &p, const Eigen::Vector3f &n);
 
+/**
+ * @brief XRotMat
+ * @param angle
+ * @return
+ */
 inline Eigen::Matrix4f XRotMat(float angle) {
     Eigen::Matrix4f T;
     T << 1, 0, 0, 0, 0, cos(angle), -sin(angle), 0, 0, sin(angle), cos(angle), 0, 0, 0, 0, 1;
@@ -22,12 +98,18 @@ inline Eigen::Matrix4f XRotMat(float angle) {
     return T;
 }
 
+/**
+ * @brief clusterPose   Cluster pose by distance/angle threshold
+ * @param poseList  Input poses to cluster
+ * @param distanceThreshold
+ * @param angleThreshold
+ * @return  Pose Clusters
+ */
 std::vector<std::vector<Pose>> clusterPose(const std::vector<Pose> &poseList,
                                            float distanceThreshold, float angleThreshold);
 
 /**
  * @brief cluster by overlap
- *
  * @param poseList
  * @param pos
  * @param threshold
@@ -35,20 +117,54 @@ std::vector<std::vector<Pose>> clusterPose(const std::vector<Pose> &poseList,
  */
 std::vector<Pose> clusterPose2(std::vector<Pose> &poseList, Eigen::Vector3f &pos, float threshold);
 
+/**
+ * @brief sortPoses Sort pose by score(vote num)
+ * @param poseList
+ * @return Sorted pose
+ */
 std::vector<Pose> sortPoses(std::vector<Pose> poseList);
 
+/**
+ * @brief avgClusters   Pose cluster to a average pose
+ * @param clusters  Input Pose Cluster
+ * @return Average Poses
+ */
 std::vector<Pose> avgClusters(const std::vector<std::vector<Pose>> &clusters);
 
-void findClosestPoint(const KDTree &kdtree, const PointCloud &srcPC, std::vector<int> &indices,
+/**
+ * @brief findClosestPoint
+ * @param kdtree
+ * @param srcPC
+ * @param indices
+ * @param distances
+ */
+void findClosestPoint(const KDTree &kdtree, const PointCloud &srcPC, VectorI &indices,
                       std::vector<float> &distances);
 
+/**
+ * @brief inliner   Find count of source point  which close to target within threshold
+ * @param srcPC Source point cloud
+ * @param kdtree    Target kd-tree
+ * @param inlineDist    Distance threshold
+ * @return  Count of points fit threshold
+ */
 int inliner(const PointCloud &srcPC, const KDTree &kdtree, float inlineDist);
 
-vectorI computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &n1, const vectorF &p2x,
-                   const vectorF &p2y, const vectorF &p2z, const vectorF &n2x, const vectorF &n2y,
-                   const vectorF &n2z, float angleStep, float distStep);
+/**
+ * @brief transformPointCloud
+ * @param pc
+ * @param pose
+ * @param useNormal
+ * @return
+ */
+PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f &pose,
+                               bool useNormal = true);
 
-vectorF computeAlpha(Eigen::Matrix4f &rt, const vectorF &p2x, const vectorF &p2y,
-                     const vectorF &p2z);
+VectorI computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &n1, const VectorF &p2x,
+                   const VectorF &p2y, const VectorF &p2z, const VectorF &n2x, const VectorF &n2y,
+                   const VectorF &n2z, float angleStep, float distStep);
+
+VectorF computeAlpha(Eigen::Matrix4f &rt, const VectorF &p2x, const VectorF &p2y,
+                     const VectorF &p2z);
 
 } // namespace ppf

@@ -22,7 +22,7 @@ public:
      * @param samplingDistanceRel Sampling distance relative to the object's diameter
      * @param param please see TrainParam
      */
-    void trainModel(const ppf::PointCloud &model, float samplingDistanceRel = 0.04f,
+    void trainModel(const PointCloud_t model, float samplingDistanceRel = 0.04f,
                     TrainParam param = TrainParam());
 
     /**
@@ -36,10 +36,10 @@ public:
      * @param minScore Minimum score of the returned poses
      * @param param please see MatchParam
      */
-    void matchScene(const ppf::PointCloud &scene, std::vector<Eigen::Matrix4f> &pose,
-                    std::vector<float> &score, float samplingDistanceRel = 0.04f,
-                    float keyPointFraction = 0.2f, float minScore = 0.2f,
-                    MatchParam param = MatchParam(), MatchResult *matchResult = nullptr);
+    void matchScene(const PointCloud_t scene, std::vector<float> &pose, std::vector<float> &score,
+                    float samplingDistanceRel = 0.04f, float keyPointFraction = 0.2f,
+                    float minScore = 0.2f, MatchParam param = MatchParam(),
+                    MatchResult *matchResult = nullptr);
 
     /**
      * @brief save trained ppf model to file

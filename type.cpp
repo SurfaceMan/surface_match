@@ -2,45 +2,55 @@
 #include <type.h>
 
 namespace ppf {
-template class Vector3I =  Vector3<int>;
 
 BoundingBox::BoundingBox()
-    : min(Eigen::Vector3f::Zero())
-    , max(Eigen::Vector3f::Zero()) {
+    : BoundingBox(Eigen::Vector3f::Zero(), Eigen::Vector3f::Zero()) {
 }
 
 BoundingBox::BoundingBox(Eigen::Vector3f min_, Eigen::Vector3f max_)
-    : min(std::move(min_))
-    , max(std::move(max_)) {
+    : _min(std::move(min_))
+    , _max(std::move(max_))
+    , _size(_max - _min)
+    , _center((_min + _max) / 2)
+    , _diameter(_size.norm()) {
 }
 
 BoundingBox &BoundingBox::operator=(const BoundingBox &rhs) {
     if (this != &rhs) {
-        this->min = rhs.min;
-        this->max = rhs.max;
+        this->_min      = rhs._min;
+        this->_max      = rhs._max;
+        this->_size     = rhs._size;
+        this->_center   = rhs._center;
+        this->_diameter = rhs._diameter;
     }
 
     return *this;
 }
 
+Eigen::Vector3f BoundingBox::min() const {
+    return _min;
+}
+
+Eigen::Vector3f BoundingBox::max() const {
+    return _max;
+}
+
 Eigen::Vector3f BoundingBox::size() const {
-    return max - min;
+    return _size;
 }
 
 Eigen::Vector3f BoundingBox::center() const {
-    return (min + max) / 2.f;
+    return _center;
 }
 
 float BoundingBox::diameter() const {
-    return size().norm();
+    return _diameter;
 }
 
-PointCloud::PointCloud(){
-    point = new Vector3F;
+PointCloud::PointCloud() {
 }
 
-PointCloud::~PointCloud(){
-
+PointCloud::~PointCloud() {
 }
 
 bool PointCloud::hasNormal() const {
@@ -60,6 +70,17 @@ Pose::Pose(float votes)
     , numVotes(votes) {
 }
 
+void Feature::push_back(uint32_t index, float angle) {
+    refInd.push_back(index);
+    alphaAngle.push_back(angle);
+}
+
+Candidate::Candidate(float vote_, int refId_, int angleId_)
+    : vote(vote_)
+    , refId(refId_)
+    , angleId(angleId_) {
+}
+
 void Pose::updatePose(const Eigen::Matrix4f &newPose) {
     pose = newPose;
 
@@ -72,8 +93,8 @@ void Pose::updatePoseT(const Eigen::Vector3f &t) {
     pose.topRightCorner(3, 1) = t;
 }
 
-void Pose::updatePoseQuat(const Eigen::Quaternionf &q_) {
-    q                        = q_;
+void Pose::updatePoseR(const Eigen::Quaternionf &quat) {
+    q                        = quat;
     r                        = q.matrix();
     pose.topLeftCorner(3, 3) = q.matrix();
 }

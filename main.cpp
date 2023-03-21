@@ -5,15 +5,11 @@
 
 int main(int argc, char *argv[]) {
 
-    ppf::PointCloud model;
-    ppf::readPLY(argv[ 1 ], model);
-    ppf::PointCloud scene;
-    ppf::readPLY(argv[ 2 ], scene);
-    scene.viewPoint = {-200, -50, -500};
-    auto tmp        = model;
-    // model.normal.clear();
-    // scene.normal.clear();
-
+    ppf::PointCloud_t model = ppf::PointCloud_New();
+    ppf::readPLY(argv[ 1 ], &model);
+    ppf::PointCloud_t scene = ppf::PointCloud_New();
+    ppf::readPLY(argv[ 2 ], &scene);
+    ppf::PointCloud_SetViewPoint(scene, -200, -50, -500);
     {
         ppf::Timer    t("train model");
         ppf::Detector detector;
@@ -21,6 +17,10 @@ int main(int argc, char *argv[]) {
         detector.save("1.model");
     }
 
+    ppf::PointCloud_Delete(&model);
+    ppf::PointCloud_Delete(&scene);
+
+    /*
     std::vector<Eigen::Matrix4f> pose;
     std::vector<float>           score;
     ppf::MatchResult             result;
@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
 
     ppf::writePLY("sampledScene.ply", result.sampledScene);
     ppf::writePLY("sampledKeypoint.ply", result.keyPoint);
-
+*/
     return 0;
 }
 /*

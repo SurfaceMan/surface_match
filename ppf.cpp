@@ -1,5 +1,6 @@
 #include <helper.h>
 #include <icp.h>
+#include <kdtree.h>
 #include <ppf.h>
 #include <privateType.h>
 #include <privateUtil.h>
@@ -13,6 +14,8 @@
 #include <set>
 #include <utility>
 
+#include <filePLY.h>
+
 #define _USE_MATH_DEFINES
 #include <math.h>
 
@@ -20,22 +23,24 @@ namespace ppf {
 
 const int   VERSION    = 100;
 const int   MAGIC      = 0x7F27F;
-const int   maxThreads = 8;
+const int   MaxThreads = 8;
 const float M_2PI      = 2 * M_PI;
 
 Detector::Detector()
     : impl_(nullptr) {
     auto numThreads = omp_get_max_threads();
-    if (numThreads > maxThreads)
-        omp_set_num_threads(maxThreads);
+    if (numThreads > MaxThreads)
+        omp_set_num_threads(MaxThreads);
 }
 
 Detector::~Detector() {
 }
 
-void Detector::trainModel(const ppf::PointCloud &model_, float samplingDistanceRel,
-                          TrainParam param) {
-    auto model = model_;
+void Detector::trainModel(const PointCloud_t model_, float samplingDistanceRel, TrainParam param) {
+    if (nullptr == model_)
+        throw std::invalid_argument("Invalid Input: model null pointer in trainModel");
+
+    auto model = *model_;
     //[1] check input date
     if (samplingDistanceRel > 1 || samplingDistanceRel < 0)
         throw std::range_error("Invalid Input: samplingDistanceRel range mismatch in trainModel");
@@ -74,7 +79,7 @@ void Detector::trainModel(const ppf::PointCloud &model_, float samplingDistanceR
     impl_->param               = param;
 
     Timer  t("model kdtree");
-    KDTree kdtree(model.point, 10, {model.box.min, model.box.max}, validIndices);
+    KDTree kdtree(model.point, 10, model.box, validIndices);
     t.release();
     Timer t1("model sample1");
     auto  indices1 = samplePointCloud(kdtree, sampleStep);
@@ -104,36 +109,24 @@ void Detector::trainModel(const ppf::PointCloud &model_, float samplingDistanceR
 
     Timer t3("model ppf");
     //[2] create hash table
-    auto    size = sampledModel.size();
-    vectorF px(size);
-    vectorF py(size);
-    vectorF pz(size);
-    vectorF nx(size);
-    vectorF ny(size);
-    vectorF nz(size);
-    for (int i = 0; i < size; i++) {
-        auto &p = sampledModel.point[ i ];
-        auto &n = sampledModel.normal[ i ];
-        px[ i ] = p.x();
-        py[ i ] = p.y();
-        pz[ i ] = p.z();
-        nx[ i ] = n.x();
-        ny[ i ] = n.y();
-        nz[ i ] = n.z();
-    }
+    auto size = sampledModel.size();
 
     gtl::flat_hash_map<uint32_t, Feature> hashTable;
-#pragma omp parallel for
+#pragma omp parallel for shared(size, hashTable, sampledModel, angleStep, \
+                                distanceStep) default(none)
     for (int i = 0; i < size; i++) {
-        auto &p1 = sampledModel.point[ i ];
-        auto &n1 = sampledModel.normal[ i ];
+        auto p1 = sampledModel.point[ i ];
+        auto n1 = sampledModel.normal[ i ];
 
         if (n1.hasNaN())
             continue;
+        auto rt = transformRT(p1, n1);
 
-        auto ppf   = computePPF(p1, n1, px, py, pz, nx, ny, nz, angleStep, distanceStep);
-        auto rt    = transformRT(p1, n1);
-        auto alpha = computeAlpha(rt, px, py, pz);
+        auto ppf = computePPF(p1, n1, sampledModel.point.x, sampledModel.point.y,
+                              sampledModel.point.z, sampledModel.normal.x, sampledModel.normal.y,
+                              sampledModel.normal.z, angleStep, distanceStep);
+        auto alpha =
+            computeAlpha(rt, sampledModel.point.x, sampledModel.point.y, sampledModel.point.z);
         for (int j = 0; j < size; j++) {
             if (i == j || isnan(alpha[ j ]))
                 continue;
@@ -146,11 +139,12 @@ void Detector::trainModel(const ppf::PointCloud &model_, float samplingDistanceR
     impl_->hashTable = std::move(hashTable);
 }
 
-void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matrix4f> &poses,
+/*
+void Detector::matchScene(const ppf::PointCloud *scene_, std::vector<float> &poses,
                           std::vector<float> &scores, float samplingDistanceRel,
                           float keyPointFraction, float minScore, MatchParam param,
                           MatchResult *matchResult) {
-    auto scene = scene_;
+    auto scene = *scene_;
     //[1] check input date
     if (!impl_)
         throw std::runtime_error("No trained model in matchScene");
@@ -175,8 +169,8 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
     if (scene.box.diameter() == 0)
         scene.box = computeBoundingBox(scene, validIndices);
 
-    std::cout << "scene box:" << scene.box.min.transpose() << "<--->" << scene.box.max.transpose()
-              << std::endl;
+    std::cout << "scene box:" << scene.box.min().transpose() << "<--->"
+              << scene.box.max().transpose() << std::endl;
 
     //[2] prepare data
     //[2.1] data from IMPL
@@ -194,12 +188,12 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
 
     //[2.2] data from keyPointFraction/samplingDistanceRel
     Timer  t("scene kdtree");
-    KDTree sceneKdtree(scene.point, 10, {scene.box.min, scene.box.max}, validIndices);
+    KDTree sceneKdtree(scene.point, 10, scene.box, validIndices);
     t.release();
-    Timer            t1("scene sample1");
-    float            sampleStep = modelDiameter * samplingDistanceRel;
-    std::vector<int> indicesOfSampleScene;
-    auto sampledIndices = samplePointCloud(sceneKdtree, sampleStep, &indicesOfSampleScene);
+    Timer   t1("scene sample1");
+    float   sampleStep = modelDiameter * samplingDistanceRel;
+    VectorI indicesOfSampleScene;
+    auto    sampledIndices = samplePointCloud(sceneKdtree, sampleStep, &indicesOfSampleScene);
     t1.release();
     if (!hasNormal) {
         Timer t("scene compute normal");
@@ -239,9 +233,13 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
     if (param.poseRefScoringDistAbs > 0)
         poseRefScoringDist = param.poseRefScoringDistAbs;
 
-    if (matchResult) {
-        matchResult->keyPoint     = extraIndices(scene, keypoint);
-        matchResult->sampledScene = extraIndices(scene, sampledIndices);
+    if (nullptr != matchResult) {
+        if (nullptr == matchResult->keyPoint)
+            matchResult->keyPoint = new PointCloud;
+        if (nullptr == matchResult->sampledScene)
+            matchResult->sampledScene = new PointCloud;
+        *matchResult->keyPoint     = extraIndices(scene, keypoint);
+        *matchResult->sampledScene = extraIndices(scene, sampledIndices);
     }
 
     Timer             t2("scene ppf");
@@ -258,46 +256,27 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
     auto    vMaxId     = xsimd::broadcast(sMaxId);
     auto    maxIdHalf  = maxIdx * 0.5f;
     auto    vMaxIdHalf = xsimd::broadcast(maxIdHalf);
-    vectorI idxAngle(1024);
+    VectorI idxAngle(1024);
 
-#pragma omp parallel for firstprivate(accumulator)
+#pragma omp parallel for firstprivate(accumulator) default(none)                                  \
+    shared(keypoint, scene, sceneKdtree, squaredDiameter, voteThreshold, angleStep, distanceStep, \
+           accSize, hashTable, end, v2pi, vpi, vMaxId, idxAngle, M_2PI, sMaxId, accElementSize)
     for (int count = 0; count < keypoint.size(); count++) {
-        auto  pointIndex = keypoint[ count ];
-        auto &p1         = scene.point[ pointIndex ];
-        auto &n1         = scene.normal[ pointIndex ];
+        auto pointIndex = keypoint[ count ];
+        auto p1         = scene.point[ pointIndex ];
+        auto n1         = scene.normal[ pointIndex ];
 
         if (n1.hasNaN())
             continue;
 
         //[3] vote
-        std::vector<std::pair<int, float>> indices;
+        std::vector<std::pair<uint32_t, float>> indices;
         auto searched = sceneKdtree.index->radiusSearch(&p1[ 0 ], squaredDiameter, indices,
                                                         nanoflann::SearchParams(32, 0, false));
         if (searched < voteThreshold)
             continue;
 
-        auto    rows = searched - 1;
-        vectorF px(rows);
-        vectorF py(rows);
-        vectorF pz(rows);
-        vectorF nx(rows);
-        vectorF ny(rows);
-        vectorF nz(rows);
-        int     i = 0;
-        for (auto &[ idx, dist ] : indices) {
-            if (pointIndex == idx)
-                continue;
-
-            auto &p = scene.point[ idx ];
-            auto &n = scene.normal[ idx ];
-            px[ i ] = p.x();
-            py[ i ] = p.y();
-            pz[ i ] = p.z();
-            nx[ i ] = n.x();
-            ny[ i ] = n.y();
-            nz[ i ] = n.z();
-            i++;
-        }
+        // auto px = xsimd::gather(scene.point.x.data(), )
 
         auto ppf   = computePPF(p1, n1, px, py, pz, nx, ny, nz, angleStep, distanceStep);
         auto rt    = transformRT(p1, n1);
@@ -321,7 +300,7 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
 
             auto vSceneAngle = xsimd::broadcast(alphaScene) - vpi;
             for (int i = 0; i < vec_size; i += simd_size) {
-                auto vAngle      = xsimd::load(&angle[ i ]);
+                auto vAngle      = xsimd::load_aligned(&angle[ i ]);
                 auto vAlphaAngle = vAngle - vSceneAngle;
                 auto vAlpha = xsimd::select(vAlphaAngle > v2pi, vAlphaAngle - v2pi, vAlphaAngle);
                 vAlpha      = xsimd::select(vAlpha < 0, vAlpha + v2pi, vAlpha);
@@ -347,19 +326,19 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
                 iter[ idxAngle[ i ] ]++;
             }
 
-            /*for (auto &feature : iter->second) {
-                auto &alphaModel = feature.alphaAngle;
-                float alphaAngle = alphaModel - alphaScene;
-                if (alphaAngle > (float)M_PI)
-                    alphaAngle = alphaAngle - M_2PI;
-                else if (alphaAngle < (float)(-M_PI))
-                    alphaAngle = alphaAngle + M_2PI;
+            //for (auto &feature : iter->second) {
+            //    auto &alphaModel = feature.alphaAngle;
+            //    float alphaAngle = alphaModel - alphaScene;
+            //    if (alphaAngle > (float)M_PI)
+            //        alphaAngle = alphaAngle - M_2PI;
+            //    else if (alphaAngle < (float)(-M_PI))
+            //        alphaAngle = alphaAngle + M_2PI;
 
-                int  angleIndex = floor(maxIdx * (alphaAngle / M_2PI + 0.5f));
-                auto iter       = &accumulator[ feature.refInd * accElementSize ];
-                iter[ 0 ]++;
-                iter[ angleIndex + 1 ]++;
-            }*/
+            //    int  angleIndex = floor(maxIdx * (alphaAngle / M_2PI + 0.5f));
+            //    auto iter       = &accumulator[ feature.refInd * accElementSize ];
+            //    iter[ 0 ]++;
+            //    iter[ angleIndex + 1 ]++;
+            //}
         }
 
         // [4]nms
@@ -398,8 +377,8 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
             if (val.vote < thre)
                 continue;
 
-            auto &pMax = modelSampled.point[ val.refId ];
-            auto &nMax = modelSampled.normal[ val.refId ];
+            auto pMax = modelSampled.point[ val.refId ];
+            auto nMax = modelSampled.normal[ val.refId ];
 
             float           alphaAngle = M_2PI * val.angleId / maxAngleIndex - M_PI;
             Eigen::Matrix4f TPose      = iT * (XRotMat(alphaAngle) * transformRT(pMax, nMax));
@@ -426,7 +405,7 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
     ICP denseIcp(ConvergenceCriteria(param.poseRefNumSteps, poseRefDistThreshold,
                                      reSampleStep * 0.5, sampleStep));
 
-    std::vector<int> indicesOfSampleScene2;
+    VectorI indicesOfSampleScene2;
     if (param.densePoseRefinement) {
         Timer t("icp prepare");
         sceneKdtree.restore();
@@ -509,7 +488,7 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
     }
 
     std::cout << "after icp has items: " << poses.size() << std::endl;
-}
+}*/
 
 void Detector::save(const std::string &filename) const {
     std::ofstream of(filename, std::ios::out | std::ios::binary);

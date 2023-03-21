@@ -55,6 +55,7 @@
 #include <ostream>
 #include <stdexcept>
 #include <vector>
+#include <xsimd/xsimd.hpp>
 
 /** Library version: 0xMmP (M=Major,m=minor,P=patch) */
 #define NANOFLANN_VERSION 0x142
@@ -601,7 +602,7 @@ public:
     /**
      *  Array of indices to vectors in the dataset.
      */
-    std::vector<AccessorType> vAcc;
+    std::vector<AccessorType, xsimd::aligned_allocator<AccessorType>> vAcc;
 
     using Offset    = typename decltype(vAcc)::size_type;
     using Size      = typename decltype(vAcc)::size_type;
