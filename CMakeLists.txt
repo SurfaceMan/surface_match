@@ -32,16 +32,17 @@ add_library(ppf SHARED
 )
 
 target_include_directories(ppf PRIVATE
-    ${KDTREE_INCLUDE_DIRS}
-    ${XSIMD_INCLUDE_DIRS}
-    ${EIGEN3_INCLUDE_DIRS}
-    ${RPLY_INCLUDE_DIRS}
-    ${CMAKE_CURRENT_SOURCE_DIR}
+        ${KDTREE_INCLUDE_DIRS}
+        ${XSIMD_INCLUDE_DIRS}
+        ${EIGEN3_INCLUDE_DIRS}
+        ${RPLY_INCLUDE_DIRS}
+        ${CMAKE_CURRENT_SOURCE_DIR}
 )
 target_link_libraries(ppf PUBLIC OpenMP::OpenMP_CXX gtl)
 target_compile_options(ppf PRIVATE
-    $<$<CXX_COMPILER_ID:MSVC>:/bigobj /arch:AVX2>
-    $<$<CXX_COMPILER_ID:GNU>: -mavx -fPIC -fvisibility=hidden -Wl,--exclude-libs,ALL>
+        $<$<CXX_COMPILER_ID:MSVC>:/bigobj /arch:AVX2>
+        $<$<CXX_COMPILER_ID:GNU>: -mavx -fPIC -fvisibility=hidden -Wl,--exclude-libs,ALL>
+        $<$<CXX_COMPILER_ID:Clang>:-fPIC -fvisibility=hidden>
 )
 target_compile_definitions(ppf PUBLIC API_EXPORTS)
 
