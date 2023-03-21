@@ -8,6 +8,10 @@
 #define API_EXPORT __attribute__((visibility("default")))
 #define API_IMPORT __attribute__((visibility("default")))
 #define API_LOCAL __attribute__((visibility("hidden")))
+#elif defined(__APPLE__)
+#define API_EXPORT __attribute__((visibility("default")))
+#define API_IMPORT __attribute__((visibility("default")))
+#define API_LOCAL __attribute__((visibility("hidden")))
 #else
 #define API_EXPORT
 #define API_IMPORT
