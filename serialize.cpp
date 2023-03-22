@@ -38,13 +38,13 @@ void deserialize(std::istream *is, VectorF &val) {
     uint32_t size;
     deserialize(is, size);
     val.resize(size);
-    is->read(reinterpret_cast<char *>(val.data()), sizeof(val) * size);
+    is->read(reinterpret_cast<char *>(val.data()), sizeof(float) * size);
 }
 
 void serialize(std::ostream *os, const VectorF &val) {
     uint32_t size = val.size();
     serialize(os, size);
-    os->write(reinterpret_cast<const char *>(val.data()), sizeof(val) * size);
+    os->write(reinterpret_cast<const char *>(val.data()), sizeof(float) * size);
 }
 
 void deserialize(std::istream *is, Eigen::Vector3f &val) {

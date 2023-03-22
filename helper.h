@@ -8,7 +8,7 @@ namespace ppf {
 
 class Timer {
 public:
-    Timer(std::string content)
+    explicit Timer(std::string content)
         : content_(std::move(content))
         , start_(std::chrono::steady_clock::now())
         , released(false) {

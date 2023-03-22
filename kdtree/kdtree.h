@@ -110,6 +110,8 @@ template <class Distance = nanoflann::metric_L2> struct KDTreeVector3FAdaptor {
                 return m_data.y[ idx ];
             case 2:
                 return m_data.z[ idx ];
+            default:
+                throw std::range_error("out of dims range");
         }
     }
 

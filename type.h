@@ -4,7 +4,7 @@
 
 namespace ppf {
 
-class PointCloud;
+struct PointCloud;
 
 using PointCloud_t = PointCloud *;
 

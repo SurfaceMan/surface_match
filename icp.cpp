@@ -41,10 +41,10 @@ void symmetric_rigid_matching(const Eigen::MatrixXf &P, const Eigen::MatrixXf &Q
                               Eigen::Matrix3f &R, Eigen::RowVector3f &t) {
 
     // normalize point sets
-    Eigen::RowVector3f Pmean = P.colwise().mean();
-    Eigen::RowVector3f Qmean = Q.colwise().mean();
-    Eigen::MatrixXf    Pbar  = P.rowwise() - Pmean;
-    Eigen::MatrixXf    Qbar  = Q.rowwise() - Qmean;
+    Eigen::RowVector3f PMean = P.colwise().mean();
+    Eigen::RowVector3f QMean = Q.colwise().mean();
+    Eigen::MatrixXf    PBar  = P.rowwise() - PMean;
+    Eigen::MatrixXf    QBar  = Q.rowwise() - QMean;
 
     // sum of normals
     Eigen::MatrixXf N = NP + NQ;
@@ -56,8 +56,8 @@ void symmetric_rigid_matching(const Eigen::MatrixXf &P, const Eigen::MatrixXf &Q
     for (int i = 0; i < num_points; ++i) {
         Eigen::MatrixXf x_i = Eigen::MatrixXf(6, 1);
         Eigen::Vector3f n_i = N.row(i);
-        Eigen::Vector3f p_i = Pbar.row(i);
-        Eigen::Vector3f q_i = Qbar.row(i);
+        Eigen::Vector3f p_i = PBar.row(i);
+        Eigen::Vector3f q_i = QBar.row(i);
         double          b_i = (p_i - q_i).dot(n_i);
         x_i << (p_i + q_i).cross(n_i), n_i;
         A += x_i * x_i.transpose();
@@ -79,9 +79,9 @@ void symmetric_rigid_matching(const Eigen::MatrixXf &P, const Eigen::MatrixXf &Q
         Eigen::Matrix3f::Identity() + sin(theta) * W + (1 - cos(theta)) * (W * W);
 
     // compose translations and rotations
-    Eigen::Vector3f t1 = -Pmean.transpose();
+    Eigen::Vector3f t1 = -PMean.transpose();
     Eigen::Vector3f t2 = cos(theta) * t_tilda;
-    Eigen::Vector3f t3 = Qmean.transpose();
+    Eigen::Vector3f t3 = QMean.transpose();
     R                  = intermediate_R * intermediate_R;
     t                  = (intermediate_R * intermediate_R * t1) + (intermediate_R * t2) + t3;
 }

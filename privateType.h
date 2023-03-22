@@ -81,11 +81,11 @@ public:
     BoundingBox(Eigen::Vector3f min, Eigen::Vector3f max);
     BoundingBox &operator=(const BoundingBox &rhs);
 
-    Eigen::Vector3f min() const;
-    Eigen::Vector3f max() const;
-    Eigen::Vector3f size() const;
-    Eigen::Vector3f center() const;
-    float           diameter() const;
+    [[nodiscard]] Eigen::Vector3f min() const;
+    [[nodiscard]] Eigen::Vector3f max() const;
+    [[nodiscard]] Eigen::Vector3f size() const;
+    [[nodiscard]] Eigen::Vector3f center() const;
+    [[nodiscard]] float           diameter() const;
 };
 
 struct PointCloud {
@@ -100,9 +100,9 @@ public:
     PointCloud();
     ~PointCloud();
 
-    bool        hasNormal() const;
-    std::size_t size() const;
-    bool        empty() const;
+    [[nodiscard]] bool        hasNormal() const;
+    [[nodiscard]] std::size_t size() const;
+    [[nodiscard]] bool        empty() const;
 };
 
 struct Feature {

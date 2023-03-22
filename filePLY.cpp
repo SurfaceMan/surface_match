@@ -1,7 +1,6 @@
 #include "filePLY.h"
 #include <rply.h>
 
-#include <Eigen/Geometry>
 #include <iostream>
 #include <privateType.h>
 
@@ -9,18 +8,18 @@ namespace ppf {
 
 namespace {
 
-namespace ply_trianglemesh_reader {
+namespace ply_triangleMesh_reader {
 
 struct PLYReaderState {
-    PointCloud *mesh_ptr;
-    long        vertex_index;
-    long        vertex_num;
-    long        normal_index;
-    long        normal_num;
-    long        color_index;
-    long        color_num;
-    long        face_index;
-    long        face_num;
+    PointCloud *mesh_ptr     = nullptr;
+    long        vertex_index = 0;
+    long        vertex_num   = 0;
+    long        normal_index = 0;
+    long        normal_num   = 0;
+    long        color_index  = 0;
+    long        color_num    = 0;
+    long        face_index   = 0;
+    long        face_num     = 0;
 };
 
 int ReadVertexCallback(p_ply_argument argument) {
@@ -30,7 +29,7 @@ int ReadVertexCallback(p_ply_argument argument) {
     if (state_ptr->vertex_index >= state_ptr->vertex_num)
         return 0;
 
-    double value = ply_get_argument_value(argument);
+    auto value = static_cast<float>(ply_get_argument_value(argument));
     switch (index) {
         case 0: {
             state_ptr->mesh_ptr->point.x[ state_ptr->vertex_index ] = value;
@@ -45,6 +44,8 @@ int ReadVertexCallback(p_ply_argument argument) {
             state_ptr->vertex_index++;
             break;
         }
+        default:
+            break;
     }
 
     return 1;
@@ -58,7 +59,7 @@ int ReadNormalCallback(p_ply_argument argument) {
         return 0;
     }
 
-    double value = ply_get_argument_value(argument);
+    auto value = static_cast<float>(ply_get_argument_value(argument));
     switch (index) {
         case 0: {
             state_ptr->mesh_ptr->normal.x[ state_ptr->vertex_index ] = value;
@@ -73,6 +74,8 @@ int ReadNormalCallback(p_ply_argument argument) {
             state_ptr->normal_index++;
             break;
         }
+        default:
+            break;
     }
 
     return 1;
@@ -86,7 +89,7 @@ int ReadColorCallback(p_ply_argument argument) {
         return 0;
     }
 
-    double value = ply_get_argument_value(argument);
+    auto value = static_cast<uint8_t>(ply_get_argument_value(argument));
     switch (index) {
         case 0: {
             state_ptr->mesh_ptr->color.x[ state_ptr->vertex_index ] = value;
@@ -101,6 +104,8 @@ int ReadColorCallback(p_ply_argument argument) {
             state_ptr->color_index++;
             break;
         }
+        default:
+            break;
     }
     return 1;
 }
@@ -113,8 +118,8 @@ int ReadFaceCallBack(p_ply_argument argument) {
         return 0;
     }
 
-    double value = ply_get_argument_value(argument);
-    ply_get_argument_property(argument, NULL, &length, &index);
+    auto value = static_cast<int>(ply_get_argument_value(argument));
+    ply_get_argument_property(argument, nullptr, &length, &index);
 
     switch (index) {
         case 0: {
@@ -130,22 +135,24 @@ int ReadFaceCallBack(p_ply_argument argument) {
             state_ptr->face_index++;
             break;
         }
+        default:
+            break;
     }
 
     return 1;
 }
 
-} // namespace ply_trianglemesh_reader
+} // namespace ply_triangleMesh_reader
 } // unnamed namespace
 /// @endcond
 
 bool PointCloud_ReadPLY(const char *filename, PointCloud_t *mesh) {
-    using namespace ply_trianglemesh_reader;
+    using namespace ply_triangleMesh_reader;
 
     if (nullptr == mesh)
         return false;
 
-    p_ply ply_file = ply_open(filename, NULL, 0, NULL);
+    p_ply ply_file = ply_open(filename, nullptr, 0, nullptr);
     if (!ply_file) {
         std::cout << "Read PLY failed: unable to open file: " << filename << std::endl;
         return false;
@@ -206,14 +213,14 @@ bool PointCloud_ReadPLY(const char *filename, PointCloud_t *mesh) {
     return true;
 }
 
-bool PointCloud_WritePLY(const char *filename, const PointCloud_t mesh, bool write_ascii) {
+bool PointCloud_WritePLY(const char *filename, PointCloud_t mesh, bool write_ascii) {
     if (mesh == nullptr || mesh->empty()) {
         std::cout << "Write PLY failed: mesh has 0 vertices." << std::endl;
         return false;
     }
 
     p_ply ply_file =
-        ply_create(filename, write_ascii ? PLY_ASCII : PLY_LITTLE_ENDIAN, NULL, 0, NULL);
+        ply_create(filename, write_ascii ? PLY_ASCII : PLY_LITTLE_ENDIAN, nullptr, 0, nullptr);
     if (!ply_file) {
         std::cout << "Write PLY failed: unable to open file: " << filename << std::endl;
         return false;
@@ -245,7 +252,7 @@ bool PointCloud_WritePLY(const char *filename, const PointCloud_t mesh, bool wri
         return false;
     }
 
-    bool printed_color_warning = false;
+    // bool printed_color_warning = false;
     for (size_t i = 0; i < mesh->point.size(); i++) {
         const auto &vertex = mesh->point[ i ];
         ply_write(ply_file, vertex.x());

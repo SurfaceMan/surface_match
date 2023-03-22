@@ -60,7 +60,7 @@ PointCloud sampleMesh(const ppf::PointCloud &pc, float radius) {
         areas[ i ] = areas[ i ] / area + areas[ i - 1 ];
     areas[ triangleSize - 1 ] = 1.f;
     // number of point
-    int nPoints = area / (radius * radius);
+    int nPoints = static_cast<int>(area / (radius * radius));
 
     //
     std::random_device                    rd;
@@ -73,7 +73,7 @@ PointCloud sampleMesh(const ppf::PointCloud &pc, float radius) {
     result.normal.resize(nPoints);
     size_t pointIdx = 0;
     for (int i = 0; i < triangleSize; i++) {
-        auto n = size_t(std::round(areas[ i ] * nPoints));
+        auto n = size_t(std::round(areas[ i ] * (float)nPoints));
         while (pointIdx < n) {
             auto r1 = dist(mt);
             auto r2 = dist(mt);

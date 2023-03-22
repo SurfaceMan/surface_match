@@ -87,11 +87,11 @@ void estimateNormalMLS(ppf::PointCloud &pc, const VectorI &indices, const KDTree
 Eigen::Matrix4f transformRT(const Eigen::Vector3f &p, const Eigen::Vector3f &n);
 
 /**
- * @brief XRotMat
+ * @brief xRotMat
  * @param angle
  * @return
  */
-inline Eigen::Matrix4f XRotMat(float angle) {
+inline Eigen::Matrix4f xRotMat(float angle) {
     Eigen::Matrix4f T;
     T << 1, 0, 0, 0, 0, cos(angle), -sin(angle), 0, 0, sin(angle), cos(angle), 0, 0, 0, 0, 1;
 

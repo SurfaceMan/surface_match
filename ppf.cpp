@@ -34,6 +34,10 @@ Detector::Detector()
 }
 
 Detector::~Detector() {
+    if (impl_) {
+        delete impl_;
+        impl_ = nullptr;
+    }
 }
 
 void Detector::trainModel(const PointCloud_t model_, float samplingDistanceRel, TrainParam param) {
@@ -74,7 +78,9 @@ void Detector::trainModel(const PointCloud_t model_, float samplingDistanceRel, 
         std::iota(validIndices.begin(), validIndices.end(), 0);
     }
 
-    impl_                      = std::make_unique<IMPL>();
+    if (impl_)
+        delete impl_;
+    impl_                      = new IMPL;
     impl_->samplingDistanceRel = samplingDistanceRel;
     impl_->param               = param;
 
@@ -381,7 +387,7 @@ void Detector::matchScene(const ppf::PointCloud *scene_, std::vector<float> &pos
             auto nMax = modelSampled.normal[ val.refId ];
 
             float           alphaAngle = M_2PI * val.angleId / maxAngleIndex - M_PI;
-            Eigen::Matrix4f TPose      = iT * (XRotMat(alphaAngle) * transformRT(pMax, nMax));
+            Eigen::Matrix4f TPose      = iT * (xRotMat(alphaAngle) * transformRT(pMax, nMax));
             Pose            pose(val.vote);
             pose.updatePose(TPose);
 
@@ -511,7 +517,7 @@ void Detector::load(const std::string &filename) {
     std::ifstream ifs(filename, std::ios::binary);
     if (!ifs.is_open())
         throw std::runtime_error("failed to open file:" + filename);
-    impl_ = std::make_unique<IMPL>();
+    impl_ = new IMPL;
 
     int magic;
     deserialize(&ifs, magic);
