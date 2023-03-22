@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <type.h>
+#include <vector>
 
 namespace ppf {
 

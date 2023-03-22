@@ -126,7 +126,7 @@ std::pair<VectorI, VectorI> findCorresponds(const PointCloud &srcPC, const KDTre
     findClosestPoint(kdtree, srcPC, indicies, distances);
 
     // limit distance
-    std::vector<std::pair<int, std::vector<int>>> map;
+    std::vector<std::pair<uint32_t, std::vector<int>>> map;
     for (int i = 0; i < distances.size(); i++) {
         auto &distance = distances[ i ];
         if (distance > rejectDist)
