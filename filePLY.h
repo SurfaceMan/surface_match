@@ -5,7 +5,7 @@
 #include <type.h>
 
 namespace ppf {
-bool API_PUBLIC readPLY(const std::string &filename, PointCloud_t*mesh);
-bool API_PUBLIC writePLY(const std::string &filename, const PointCloud_t mesh,
-                         bool write_ascii = false);
+API_DEMANGLED API_PUBLIC bool PointCloud_ReadPLY(const char *filename, PointCloud_t *mesh);
+API_DEMANGLED API_PUBLIC bool PointCloud_WritePLY(const char *filename, const PointCloud_t mesh,
+                                                  bool write_ascii = false);
 } // namespace ppf

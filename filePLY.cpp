@@ -139,10 +139,13 @@ int ReadFaceCallBack(p_ply_argument argument) {
 } // unnamed namespace
 /// @endcond
 
-bool readPLY(const std::string &filename, PointCloud_t *mesh) {
+bool PointCloud_ReadPLY(const char *filename, PointCloud_t *mesh) {
     using namespace ply_trianglemesh_reader;
 
-    p_ply ply_file = ply_open(filename.c_str(), NULL, 0, NULL);
+    if (nullptr == mesh)
+        return false;
+
+    p_ply ply_file = ply_open(filename, NULL, 0, NULL);
     if (!ply_file) {
         std::cout << "Read PLY failed: unable to open file: " << filename << std::endl;
         return false;
@@ -153,7 +156,7 @@ bool readPLY(const std::string &filename, PointCloud_t *mesh) {
         return false;
     }
 
-    if (mesh == nullptr)
+    if (*mesh == nullptr)
         *mesh = new PointCloud;
 
     PLYReaderState state;
@@ -203,14 +206,14 @@ bool readPLY(const std::string &filename, PointCloud_t *mesh) {
     return true;
 }
 
-bool writePLY(const std::string &filename, const PointCloud_t mesh, bool write_ascii) {
+bool PointCloud_WritePLY(const char *filename, const PointCloud_t mesh, bool write_ascii) {
     if (mesh == nullptr || mesh->empty()) {
         std::cout << "Write PLY failed: mesh has 0 vertices." << std::endl;
         return false;
     }
 
     p_ply ply_file =
-        ply_create(filename.c_str(), write_ascii ? PLY_ASCII : PLY_LITTLE_ENDIAN, NULL, 0, NULL);
+        ply_create(filename, write_ascii ? PLY_ASCII : PLY_LITTLE_ENDIAN, NULL, 0, NULL);
     if (!ply_file) {
         std::cout << "Write PLY failed: unable to open file: " << filename << std::endl;
         return false;

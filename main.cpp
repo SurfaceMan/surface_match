@@ -6,9 +6,9 @@
 int main(int argc, char *argv[]) {
 
     ppf::PointCloud_t model = ppf::PointCloud_New();
-    ppf::readPLY(argv[ 1 ], &model);
+    ppf::PointCloud_ReadPLY(argv[ 1 ], &model);
     ppf::PointCloud_t scene = ppf::PointCloud_New();
-    ppf::readPLY(argv[ 2 ], &scene);
+    ppf::PointCloud_ReadPLY(argv[ 2 ], &scene);
     ppf::PointCloud_SetViewPoint(scene, -200, -50, -500);
     {
         ppf::Timer    t("train model");
