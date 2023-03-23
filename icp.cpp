@@ -127,10 +127,11 @@ std::pair<std::vector<std::size_t>, std::vector<std::size_t>>
     findClosestPoint(kdtree, srcPC, indicies, distances);
 
     // limit distance
+    auto                                          rejectDistSquare = rejectDist * rejectDist;
     std::vector<std::pair<int, std::vector<int>>> map;
     for (int i = 0; i < distances.size(); i++) {
         auto &distance = distances[ i ];
-        if (distance > rejectDist)
+        if (distance > rejectDistSquare)
             continue;
 
         auto index = indicies[ i ];
