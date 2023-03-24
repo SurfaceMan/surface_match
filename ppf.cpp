@@ -117,8 +117,10 @@ void Detector::trainModel(const PointCloud_t model_, float samplingDistanceRel, 
     //[2] create hash table
     auto size = sampledModel.size();
 
+    //TODO compare difference between reduction and lock
     gtl::flat_hash_map<uint32_t, Feature> hashTable;
-#pragma omp parallel for shared(size, hashTable, sampledModel, angleStep, \
+#pragma omp declare reduction(mapCombine : gtl::flat_hash_map<uint32_t, Feature>: omp_out.insert(omp_in.begin(), omp_in.end()))
+#pragma omp parallel for reduction(mapCombine:hashTable) shared(size, sampledModel, angleStep, \
                                 distanceStep) default(none)
     for (int i = 0; i < size; i++) {
         auto p1 = sampledModel.point[ i ];
@@ -136,8 +138,7 @@ void Detector::trainModel(const PointCloud_t model_, float samplingDistanceRel, 
         for (int j = 0; j < size; j++) {
             if (i == j || isnan(alpha[ j ]))
                 continue;
-#pragma omp critical
-            { hashTable[ ppf[ j ] ].push_back(i, alpha[ j ]); }
+            hashTable[ ppf[ j ] ].push_back(i, alpha[ j ]);
         }
     }
     t3.release();
