@@ -37,10 +37,10 @@ public:
      * @param minScore Minimum score of the returned poses
      * @param param please see MatchParam
      */
-    //void matchScene(const PointCloud_t scene, std::vector<float> &pose, std::vector<float> &score,
-    //                float samplingDistanceRel = 0.04f, float keyPointFraction = 0.2f,
-    //                float minScore = 0.2f, MatchParam param = MatchParam(),
-    //                MatchResult *matchResult = nullptr);
+    void matchScene(PointCloud_t scene, std::vector<float> &pose, std::vector<float> &score,
+                    float samplingDistanceRel = 0.04f, float keyPointFraction = 0.2f,
+                    float minScore = 0.2f, MatchParam param = MatchParam(),
+                    MatchResult *matchResult = nullptr);
 
     /**
      * @brief save trained ppf model to file

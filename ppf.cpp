@@ -24,7 +24,7 @@ namespace ppf {
 const int   VERSION    = 100;
 const int   MAGIC      = 0x7F27F;
 const int   MaxThreads = 8;
-const float M_2PI      = 2 * M_PI;
+const float M_2PI      = static_cast<float>(2 * M_PI);
 
 Detector::Detector()
     : impl_(nullptr) {
@@ -40,7 +40,7 @@ Detector::~Detector() {
     }
 }
 
-void Detector::trainModel(const PointCloud_t model_, float samplingDistanceRel, TrainParam param) {
+void Detector::trainModel(PointCloud_t model_, float samplingDistanceRel, TrainParam param) {
     if (nullptr == model_)
         throw std::invalid_argument("Invalid Input: model null pointer in trainModel");
 
@@ -71,15 +71,14 @@ void Detector::trainModel(const PointCloud_t model_, float samplingDistanceRel, 
     // mesh
     if (!model.face.empty()) {
         Timer t("sample mesh");
-        model = sampleMesh(model, reSampleStep / 4.);
+        model = sampleMesh(model, reSampleStep / 4.f);
         t.release();
         hasNormal = model.hasNormal();
         validIndices.resize(model.size());
         std::iota(validIndices.begin(), validIndices.end(), 0);
     }
 
-    if (impl_)
-        delete impl_;
+    delete impl_;
     impl_                      = new IMPL;
     impl_->samplingDistanceRel = samplingDistanceRel;
     impl_->param               = param;
@@ -101,11 +100,11 @@ void Detector::trainModel(const PointCloud_t model_, float samplingDistanceRel, 
               << "model resampled point size:" << indices2.size() << std::endl;
 
     if (!hasNormal) {
-        Timer t("model compute normal");
+        Timer ten("model compute normal");
         estimateNormal(model, indices1, kdtree, param.knnNormal, param.smoothNormal);
         estimateNormal(model, indices2, kdtree, param.knnNormal, param.smoothNormal);
     } else {
-        Timer t("model normalize normal");
+        Timer tnn("model normalize normal");
         normalizeNormal(model);
     }
 
@@ -117,11 +116,12 @@ void Detector::trainModel(const PointCloud_t model_, float samplingDistanceRel, 
     //[2] create hash table
     auto size = sampledModel.size();
 
-    //TODO compare difference between reduction and lock
+    // TODO compare difference between reduction and lock
     gtl::flat_hash_map<uint32_t, Feature> hashTable;
 #pragma omp declare reduction(mapCombine : gtl::flat_hash_map<uint32_t, Feature>: omp_out.insert(omp_in.begin(), omp_in.end()))
-#pragma omp parallel for reduction(mapCombine:hashTable) shared(size, sampledModel, angleStep, \
-                                distanceStep) default(none)
+#pragma omp parallel for reduction(mapCombine   \
+                                   : hashTable) \
+    shared(size, sampledModel, angleStep, distanceStep) default(none)
     for (int i = 0; i < size; i++) {
         auto p1 = sampledModel.point[ i ];
         auto n1 = sampledModel.normal[ i ];
@@ -146,8 +146,7 @@ void Detector::trainModel(const PointCloud_t model_, float samplingDistanceRel, 
     impl_->hashTable = std::move(hashTable);
 }
 
-/*
-void Detector::matchScene(const ppf::PointCloud *scene_, std::vector<float> &poses,
+void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
                           std::vector<float> &scores, float samplingDistanceRel,
                           float keyPointFraction, float minScore, MatchParam param,
                           MatchResult *matchResult) {
@@ -203,11 +202,11 @@ void Detector::matchScene(const ppf::PointCloud *scene_, std::vector<float> &pos
     auto    sampledIndices = samplePointCloud(sceneKdtree, sampleStep, &indicesOfSampleScene);
     t1.release();
     if (!hasNormal) {
-        Timer t("scene compute normal");
+        Timer ten("scene compute normal");
         estimateNormal(scene, sampledIndices, sceneKdtree, param.knnNormal, param.smoothNormal,
                        param.invertNormal);
     } else {
-        Timer t("scene normalize normal");
+        Timer tnn("scene normalize normal");
         normalizeNormal(scene);
     }
     Timer t3("scene sample2");
@@ -265,9 +264,12 @@ void Detector::matchScene(const ppf::PointCloud *scene_, std::vector<float> &pos
     auto    vMaxIdHalf = xsimd::broadcast(maxIdHalf);
     VectorI idxAngle(1024);
 
-#pragma omp parallel for firstprivate(accumulator) default(none)                                  \
-    shared(keypoint, scene, sceneKdtree, squaredDiameter, voteThreshold, angleStep, distanceStep, \
-           accSize, hashTable, end, v2pi, vpi, vMaxId, idxAngle, M_2PI, sMaxId, accElementSize)
+//#pragma omp declare reduction(vecCombine:std::vector<Pose> : omp_out.insert(omp_out.end(), omp_in.begin(), omp_in.end()))
+//#pragma omp parallel for firstprivate(accumulator, idxAngle) reduction(vecCombine                 \
+//                                                                       : poseList)                \
+//    shared(keypoint, scene, sceneKdtree, squaredDiameter, voteThreshold, angleStep, distanceStep, \
+//           accSize, hashTable, end, v2pi, vpi, vMaxId, M_2PI, sMaxId, maxAngleIndex, refNum,      \
+//           angleNum, modelSampled, accElementSize) default(none)
     for (int count = 0; count < keypoint.size(); count++) {
         auto pointIndex = keypoint[ count ];
         auto p1         = scene.point[ pointIndex ];
@@ -284,6 +286,29 @@ void Detector::matchScene(const ppf::PointCloud *scene_, std::vector<float> &pos
             continue;
 
         // auto px = xsimd::gather(scene.point.x.data(), )
+
+        auto    rows = searched - 1;
+        VectorF px(rows);
+        VectorF py(rows);
+        VectorF pz(rows);
+        VectorF nx(rows);
+        VectorF ny(rows);
+        VectorF nz(rows);
+        int     i = 0;
+        for (auto &[ idx, dist ] : indices) {
+            if (pointIndex == idx)
+                continue;
+
+            auto &p = scene.point;
+            auto &n = scene.normal;
+            px[ i ] = p.x[ idx ];
+            py[ i ] = p.y[ idx ];
+            pz[ i ] = p.z[ idx ];
+            nx[ i ] = n.x[ idx ];
+            ny[ i ] = n.y[ idx ];
+            nz[ i ] = n.z[ idx ];
+            i++;
+        }
 
         auto ppf   = computePPF(p1, n1, px, py, pz, nx, ny, nz, angleStep, distanceStep);
         auto rt    = transformRT(p1, n1);
@@ -333,13 +358,13 @@ void Detector::matchScene(const ppf::PointCloud *scene_, std::vector<float> &pos
                 iter[ idxAngle[ i ] ]++;
             }
 
-            //for (auto &feature : iter->second) {
-            //    auto &alphaModel = feature.alphaAngle;
-            //    float alphaAngle = alphaModel - alphaScene;
-            //    if (alphaAngle > (float)M_PI)
-            //        alphaAngle = alphaAngle - M_2PI;
-            //    else if (alphaAngle < (float)(-M_PI))
-            //        alphaAngle = alphaAngle + M_2PI;
+            // for (auto &feature : iter->second) {
+            //     auto &alphaModel = feature.alphaAngle;
+            //     float alphaAngle = alphaModel - alphaScene;
+            //     if (alphaAngle > (float)M_PI)
+            //         alphaAngle = alphaAngle - M_2PI;
+            //     else if (alphaAngle < (float)(-M_PI))
+            //         alphaAngle = alphaAngle + M_2PI;
 
             //    int  angleIndex = floor(maxIdx * (alphaAngle / M_2PI + 0.5f));
             //    auto iter       = &accumulator[ feature.refInd * accElementSize ];
@@ -392,8 +417,7 @@ void Detector::matchScene(const ppf::PointCloud *scene_, std::vector<float> &pos
             Pose            pose(val.vote);
             pose.updatePose(TPose);
 
-#pragma omp critical
-            { poseList.push_back(pose); }
+            poseList.push_back(pose);
         }
     }
     t2.release();
@@ -406,6 +430,7 @@ void Detector::matchScene(const ppf::PointCloud *scene_, std::vector<float> &pos
     auto cluster2 = clusterPose2(sorted, center, maxOverlapDist);
 
     std::cout << "after cluster has items: " << cluster2.size() << std::endl;
+    return ;
 
     //[6] icp
     ICP sparseIcp(ConvergenceCriteria(5, poseRefDistThreshold, sampleStep * 0.5, sampleStep));
@@ -491,11 +516,11 @@ void Detector::matchScene(const ppf::PointCloud *scene_, std::vector<float> &pos
     for (std::size_t i = 0; i < result.size(); i++) {
         auto &target = result[ i ];
         scores[ i ]  = target.first;
-        poses[ i ]   = target.second;
+        // poses[ i ]   = target.second;
     }
 
     std::cout << "after icp has items: " << poses.size() << std::endl;
-}*/
+}
 
 void Detector::save(const std::string &filename) const {
     std::ofstream of(filename, std::ios::out | std::ios::binary);

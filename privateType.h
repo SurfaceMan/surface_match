@@ -57,6 +57,18 @@ public:
         z.resize(count, p.z());
     }
 
+    void set(size_t idx, T x_, T y_, T z_) {
+        x[ idx ] = x_;
+        y[ idx ] = y_;
+        z[ idx ] = z_;
+    }
+
+    void set(size_t idx, Eigen::Matrix<T, 3, 1, 0> p) {
+        x[ idx ] = p.x();
+        y[ idx ] = p.y();
+        z[ idx ] = p.z();
+    }
+
     [[nodiscard]] bool empty() const {
         return x.empty();
     }

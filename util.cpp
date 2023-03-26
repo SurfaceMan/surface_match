@@ -290,6 +290,7 @@ void computeNormal(ppf::PointCloud &pc, int idx, const KDTree &tree, int k,
     int             minInd = 0;
     eval.cwiseAbs().minCoeff(&minInd);
     normal = eig.eigenvectors().col(minInd); // is already normalized
+    pc.normal.set(idx, normal);
 
     point = centroid;
 }
@@ -302,7 +303,7 @@ void estimateNormal(ppf::PointCloud &pc, const VectorI &indices, const KDTree &t
         k = 3;
 
     auto size = indices.size();
-#pragma omp parallel for
+#pragma omp parallel for default(none) shared(size, indices, pc, tree, k, smooth)
     for (int i = 0; i < size; i++) {
         auto idx    = indices[ i ];
         auto normal = pc.normal[ idx ];
@@ -328,6 +329,7 @@ void estimateNormal(ppf::PointCloud &pc, const VectorI &indices, const KDTree &t
             }
 
             normal = nSum.normalized();
+            pc.normal.set(i, normal);
         }
     }
 
@@ -336,22 +338,22 @@ void estimateNormal(ppf::PointCloud &pc, const VectorI &indices, const KDTree &t
         check = [](const float &val) { return val > 0.f; };
 
     if (pc.viewPoint.allFinite()) {
-#pragma omp parallel for
+#pragma omp parallel for default(none) shared(size, indices, pc, check)
         for (int i = 0; i < size; i++) {
             auto idx    = indices[ i ];
             auto normal = pc.normal[ idx ];
             auto point  = pc.point[ idx ];
             if (check(normal.dot(pc.viewPoint - point)))
-                normal = -normal;
+                pc.normal.set(idx, -normal);
         }
     } else {
         // normal's direction default toward z axis
-#pragma omp parallel for
+#pragma omp parallel for default(none) shared(size, indices, pc, check)
         for (int i = 0; i < size; i++) {
             auto idx    = indices[ i ];
             auto normal = pc.normal[ idx ];
             if (check(normal.dot(Eigen::Vector3f::UnitZ())))
-                normal = -normal;
+                pc.normal.set(idx, -normal);
         }
     }
 }

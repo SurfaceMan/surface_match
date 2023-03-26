@@ -9,8 +9,8 @@ struct PointCloud;
 using PointCloud_t = PointCloud *;
 
 struct MatchResult {
-    PointCloud_t sampledScene;
-    PointCloud_t keyPoint;
+    PointCloud_t sampledScene = nullptr;
+    PointCloud_t keyPoint     = nullptr;
 };
 
 /**
