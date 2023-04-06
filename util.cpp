@@ -166,19 +166,24 @@ PointCloud extraIndices(const ppf::PointCloud &pc, const VectorI &indices) {
     if (hasNormal)
         result.normal.resize(indices.size());
 
-#pragma omp parallel for
-    for (int i = 0; i < indices.size(); i++) {
-
-        Eigen::Vector3f p   = pc.point[ indices[ i ] ];
-        result.point.x[ i ] = p.x();
-        result.point.y[ i ] = p.y();
-        result.point.z[ i ] = p.z();
-
-        if (hasNormal) {
-            Eigen::Vector3f n    = pc.normal[ indices[ i ] ].normalized();
-            result.normal.x[ i ] = n.x();
-            result.normal.y[ i ] = n.y();
-            result.normal.z[ i ] = n.z();
+#pragma omp parallel for default(none) shared(pc, result, indices)
+    for (int dim = 0; dim < 3; dim++) {
+        const decltype(pc.point.x) &source =
+            dim == 0 ? pc.point.x : (dim == 1 ? pc.point.y : pc.point.z);
+        decltype(pc.point.x) &target =
+            dim == 0 ? result.point.x : (dim == 1 ? result.point.y : result.point.z);
+        for (int i = 0; i < indices.size(); i++)
+            target[ i ] = source[ indices[ i ] ];
+    }
+    if (hasNormal) {
+#pragma omp parallel for default(none) shared(pc, result, indices)
+        for (int dim = 0; dim < 3; dim++) {
+            const decltype(pc.point.x) &source =
+                dim == 0 ? pc.normal.x : (dim == 1 ? pc.normal.y : pc.normal.z);
+            decltype(pc.point.x) &target =
+                dim == 0 ? result.normal.x : (dim == 1 ? result.normal.y : result.normal.z);
+            for (int i = 0; i < indices.size(); i++)
+                target[ i ] = source[ indices[ i ] ];
         }
     }
 
@@ -190,17 +195,28 @@ PointCloud extraIndices(const ppf::PointCloud &pc, const VectorI &indices) {
 }
 
 void normalizeNormal(ppf::PointCloud &pc, bool invert) {
+    auto                  size      = pc.size();
+    constexpr std::size_t simd_size = xsimd::simd_type<float>::size;
+    std::size_t           vec_size  = size - size % simd_size;
+    auto                  factor    = xsimd::broadcast(invert ? -1.0f : 1.0f);
 
-    if (invert) {
-#pragma omp parallel for
-        for (int i = 0; i < pc.normal.size(); i++) {
-            pc.normal[ i ] = -pc.normal[ i ].normalized();
-        }
-        return;
+#pragma omp parallel for default(none) shared(vec_size, pc, factor)
+    for (int i = 0; i < vec_size; i += simd_size) {
+        auto nx = xsimd::load_aligned(&pc.normal.x[ i ]);
+        auto ny = xsimd::load_aligned(&pc.normal.y[ i ]);
+        auto nz = xsimd::load_aligned(&pc.normal.z[ i ]);
+
+        auto norm = xsimd::sqrt(nx * nx + ny * ny + nz * nz) * factor;
+        xsimd::store_aligned(&pc.normal.x[ i ], nx / norm);
+        xsimd::store_aligned(&pc.normal.y[ i ], ny / norm);
+        xsimd::store_aligned(&pc.normal.z[ i ], nz / norm);
     }
-#pragma omp parallel for
-    for (int i = 0; i < pc.normal.size(); i++) {
-        pc.normal[ i ].normalize();
+
+    for (auto i = vec_size; i < size; i++) {
+        auto n = pc.normal[ i ].normalized();
+        if (invert)
+            n = -n;
+        pc.normal.set(i, n);
     }
 }
 
@@ -216,14 +232,16 @@ BoundingBox computeBoundingBox(const ppf::PointCloud &pc, const VectorI &validIn
         min          = {*minMaxX.first, *minMaxY.first, *minMaxZ.first};
         max          = {*minMaxX.second, *minMaxY.second, *minMaxZ.second};
     } else {
-#pragma omp parallel for
+#pragma omp parallel for default(none) shared(pc, validIndices, min, max)
         for (int dim = 0; dim < 3; dim++) {
+            const decltype(pc.point.x) &data =
+                dim == 0 ? pc.point.x : (dim == 1 ? pc.point.y : pc.point.z);
             for (auto idx : validIndices) {
-                auto p = pc.point[ idx ];
-                if (p[ dim ] > max[ dim ])
-                    max[ dim ] = p[ dim ];
-                else if (p[ dim ] < min[ dim ])
-                    min[ dim ] = p[ dim ];
+                auto val = data[ idx ];
+                if (val > max[ dim ])
+                    max[ dim ] = val;
+                else if (val < min[ dim ])
+                    min[ dim ] = val;
             }
         }
     }
@@ -244,11 +262,42 @@ PointCloud transformPointCloud(const ppf::PointCloud &pc, const Eigen::Matrix4f 
     auto r = pose.topLeftCorner(3, 3);
     auto t = pose.topRightCorner(3, 1);
 
-#pragma omp parallel for
-    for (int i = 0; i < size; i++) {
-        result.point[ i ] = r * pc.point[ i ] + t;
+    constexpr std::size_t simd_size = xsimd::simd_type<float>::size;
+    std::size_t           vec_size  = size - size % simd_size;
+
+#pragma omp parallel for default(none) shared(vec_size, pc, pose, result, doNormal)
+    for (int i = 0; i < vec_size; i += simd_size) {
+        auto x = xsimd::load_aligned(&pc.point.x[ i ]);
+        auto y = xsimd::load_aligned(&pc.point.y[ i ]);
+        auto z = xsimd::load_aligned(&pc.point.z[ i ]);
+
+        auto tx = pose(0, 0) * x + pose(0, 1) * y + pose(0, 2) * z + pose(0, 3);
+        auto ty = pose(1, 0) * x + pose(1, 1) * y + pose(1, 2) * z + pose(1, 3);
+        auto tz = pose(2, 0) * x + pose(2, 1) * y + pose(2, 2) * z + pose(2, 3);
+
+        xsimd::store_aligned(&result.point.x[ i ], tx);
+        xsimd::store_aligned(&result.point.y[ i ], ty);
+        xsimd::store_aligned(&result.point.z[ i ], tz);
+
+        if (doNormal) {
+            auto nx = xsimd::load_aligned(&pc.normal.x[ i ]);
+            auto ny = xsimd::load_aligned(&pc.normal.y[ i ]);
+            auto nz = xsimd::load_aligned(&pc.normal.z[ i ]);
+
+            auto tNx = pose(0, 0) * nx + pose(0, 1) * ny + pose(0, 2) * nz;
+            auto tNy = pose(1, 0) * nx + pose(1, 1) * ny + pose(1, 2) * nz;
+            auto tNz = pose(2, 0) * nx + pose(2, 1) * ny + pose(2, 2) * nz;
+
+            xsimd::store_aligned(&result.normal.x[ i ], tNx);
+            xsimd::store_aligned(&result.normal.y[ i ], tNy);
+            xsimd::store_aligned(&result.normal.z[ i ], tNz);
+        }
+    }
+
+    for (auto i = vec_size; i < size; i++) {
+        result.point.set(i, r * pc.point[ i ] + t);
         if (doNormal)
-            result.normal[ i ] = r * pc.normal[ i ];
+            result.normal.set(i, r * pc.normal[ i ]);
     }
 
     result.face = pc.face;
@@ -292,7 +341,7 @@ void computeNormal(ppf::PointCloud &pc, int idx, const KDTree &tree, int k,
     normal = eig.eigenvectors().col(minInd); // is already normalized
     pc.normal.set(idx, normal);
 
-    point = centroid;
+    pc.point.set(idx, centroid);
 }
 
 void estimateNormal(ppf::PointCloud &pc, const VectorI &indices, const KDTree &tree, int k,
@@ -588,9 +637,9 @@ Eigen::Quaternionf avgQuaternionMarkley(const std::vector<Eigen::Quaternionf> &q
     Eigen::EigenSolver<Eigen::Matrix4f> es(A);
     Eigen::MatrixXcf                    evecs =
         es.eigenvectors(); // 获取矩阵特征向量4*4，这里定义的MatrixXcd必须有c，表示获得的是complex复数矩阵
-    Eigen::MatrixXcf evals = es.eigenvalues(); // 获取矩阵特征值 4*1
-    Eigen::MatrixXf  evalsReal;                // 注意这里定义的MatrixXd里没有c
-    evalsReal = evals.real();                  // 获取特征值实数部分
+    Eigen::MatrixXcf evals = es.eigenvalues();     // 获取矩阵特征值 4*1
+    Eigen::MatrixXf  evalsReal;                    // 注意这里定义的MatrixXd里没有c
+    evalsReal = evals.real();                      // 获取特征值实数部分
     Eigen::MatrixXf::Index evalsMax;
     evalsReal.rowwise().sum().maxCoeff(&evalsMax); // 得到最大特征值的位置
 
@@ -633,7 +682,7 @@ void findClosestPoint(const KDTree &kdtree, const PointCloud &srcPC, VectorI &in
     VectorI            indicesTmp(size);
     std::vector<float> distancesTmp(size);
 
-#pragma omp parallel for
+#pragma omp parallel for default(none) shared(size, srcPC, kdtree, indicesTmp, distancesTmp)
     for (int i = 0; i < size; i++) {
         auto                           point = srcPC.point[ i ];
         std::vector<size_t>            indexes(numResult);

@@ -40,6 +40,15 @@ Detector::~Detector() {
     }
 }
 
+void merge(gtl::flat_hash_map<uint32_t, Feature> &out, gtl::flat_hash_map<uint32_t, Feature> &in) {
+    for (auto &itm : in) {
+        auto &found = out[ itm.first ];
+        found.alphaAngle.insert(found.alphaAngle.end(), itm.second.alphaAngle.begin(),
+                                itm.second.alphaAngle.end());
+        found.refInd.insert(found.refInd.end(), itm.second.refInd.begin(), itm.second.refInd.end());
+    }
+}
+
 void Detector::trainModel(PointCloud_t model_, float samplingDistanceRel, TrainParam param) {
     if (nullptr == model_)
         throw std::invalid_argument("Invalid Input: model null pointer in trainModel");
@@ -118,9 +127,9 @@ void Detector::trainModel(PointCloud_t model_, float samplingDistanceRel, TrainP
 
     // TODO compare difference between reduction and lock
     gtl::flat_hash_map<uint32_t, Feature> hashTable;
-#pragma omp declare reduction(mapCombine : gtl::flat_hash_map<uint32_t, Feature>: omp_out.insert(omp_in.begin(), omp_in.end()))
-#pragma omp parallel for reduction(mapCombine   \
-                                   : hashTable) \
+#pragma omp declare reduction( \
+        mapCombine : gtl::flat_hash_map<uint32_t, Feature> : merge(omp_out, omp_in))
+#pragma omp parallel for reduction(mapCombine : hashTable) \
     shared(size, sampledModel, angleStep, distanceStep) default(none)
     for (int i = 0; i < size; i++) {
         auto p1 = sampledModel.point[ i ];
@@ -264,12 +273,12 @@ void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
     auto    vMaxIdHalf = xsimd::broadcast(maxIdHalf);
     VectorI idxAngle(1024);
 
-//#pragma omp declare reduction(vecCombine:std::vector<Pose> : omp_out.insert(omp_out.end(), omp_in.begin(), omp_in.end()))
-//#pragma omp parallel for firstprivate(accumulator, idxAngle) reduction(vecCombine                 \
-//                                                                       : poseList)                \
-//    shared(keypoint, scene, sceneKdtree, squaredDiameter, voteThreshold, angleStep, distanceStep, \
-//           accSize, hashTable, end, v2pi, vpi, vMaxId, M_2PI, sMaxId, maxAngleIndex, refNum,      \
-//           angleNum, modelSampled, accElementSize) default(none)
+#pragma omp declare reduction(vecCombine : std::vector<Pose> : omp_out.insert( \
+        omp_out.end(), omp_in.begin(), omp_in.end()))
+#pragma omp parallel for firstprivate(accumulator, idxAngle) reduction(vecCombine : poseList)     \
+    shared(keypoint, scene, sceneKdtree, squaredDiameter, voteThreshold, angleStep, distanceStep, \
+               accSize, hashTable, end, v2pi, vpi, vMaxId, M_2PI, sMaxId, maxAngleIndex, refNum,  \
+               angleNum, modelSampled, accElementSize) default(none)
     for (int count = 0; count < keypoint.size(); count++) {
         auto pointIndex = keypoint[ count ];
         auto p1         = scene.point[ pointIndex ];
@@ -430,7 +439,6 @@ void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
     auto cluster2 = clusterPose2(sorted, center, maxOverlapDist);
 
     std::cout << "after cluster has items: " << cluster2.size() << std::endl;
-    return ;
 
     //[6] icp
     ICP sparseIcp(ConvergenceCriteria(5, poseRefDistThreshold, sampleStep * 0.5, sampleStep));
