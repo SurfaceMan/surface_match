@@ -73,8 +73,8 @@ PointCloud sampleMesh(const ppf::PointCloud &pc, float radius) {
     result.normal.resize(nPoints);
     size_t pointIdx = 0;
     for (int i = 0; i < triangleSize; i++) {
-        auto n = size_t(std::round(areas[ i ] * (float)nPoints));
-        while (pointIdx < n) {
+        auto subPoints = size_t(std::round(areas[ i ] * (float)nPoints));
+        while (pointIdx < subPoints) {
             auto r1 = dist(mt);
             auto r2 = dist(mt);
             auto a  = 1. - std::sqrt(r1);
@@ -109,10 +109,41 @@ VectorI removeNan(const ppf::PointCloud &pc, bool checkNormal) {
     std::vector<bool> keep(size, true);
     checkNormal = checkNormal && pc.hasNormal();
 
-#pragma omp parallel for
-    for (int i = 0; i < size; i++) {
-        if (!pc.point[ i ].allFinite() || (checkNormal && !pc.normal[ i ].allFinite()))
-            keep[ i ] = false;
+#pragma omp parallel default(none) shared(pc, keep, size, checkNormal)
+    {
+#pragma omp for nowait
+        for (int i = 0; i < size; i++) {
+            if (std::isnan(pc.point.x[ i ]))
+                keep[ i ] = false;
+        }
+#pragma omp for nowait
+        for (int i = 0; i < size; i++) {
+            if (std::isnan(pc.point.y[ i ]))
+                keep[ i ] = false;
+        }
+#pragma omp for nowait
+        for (int i = 0; i < size; i++) {
+            if (std::isnan(pc.point.z[ i ]))
+                keep[ i ] = false;
+        }
+
+        if (checkNormal) {
+#pragma omp for nowait
+            for (int i = 0; i < size; i++) {
+                if (std::isnan(pc.normal.x[ i ]))
+                    keep[ i ] = false;
+            }
+#pragma omp for nowait
+            for (int i = 0; i < size; i++) {
+                if (std::isnan(pc.normal.y[ i ]))
+                    keep[ i ] = false;
+            }
+#pragma omp for nowait
+            for (int i = 0; i < size; i++) {
+                if (std::isnan(pc.normal.z[ i ]))
+                    keep[ i ] = false;
+            }
+        }
     }
 
     VectorI result;
@@ -134,7 +165,10 @@ VectorI samplePointCloud(const KDTree &tree, float sampleStep, VectorI *indicesO
     if (indicesOfIndices)
         indicesOfIndices->resize(size, nanoflann::INVALID_INDEX);
 
-#pragma omp parallel for schedule(static)
+#pragma omp declare reduction(vecCombine \
+:VectorI : omp_out.insert(omp_out.end(), omp_in.begin(), omp_in.end()))
+#pragma omp         parallel for schedule(static) default(none) reduction(vecCombine : result) \
+    shared(size, tree, keep, indicesOfIndices, radius)
     for (int i = 0; i < size; i++) {
         auto index = tree.index->vAcc[ i ];
         if (index == nanoflann::INVALID_INDEX)
@@ -142,8 +176,8 @@ VectorI samplePointCloud(const KDTree &tree, float sampleStep, VectorI *indicesO
 
         if (!keep[ index ])
             continue;
-#pragma omp critical
-        { result.push_back(index); }
+
+        result.push_back(index);
         if (indicesOfIndices)
             (*indicesOfIndices)[ i ] = index;
 
@@ -161,29 +195,34 @@ VectorI samplePointCloud(const KDTree &tree, float sampleStep, VectorI *indicesO
 PointCloud extraIndices(const ppf::PointCloud &pc, const VectorI &indices) {
     PointCloud result;
     bool       hasNormal = pc.hasNormal();
+    auto       size      = indices.size();
 
-    result.point.resize(indices.size());
+    result.point.resize(size);
     if (hasNormal)
-        result.normal.resize(indices.size());
+        result.normal.resize(size);
 
-#pragma omp parallel for default(none) shared(pc, result, indices)
-    for (int dim = 0; dim < 3; dim++) {
-        const decltype(pc.point.x) &source =
-            dim == 0 ? pc.point.x : (dim == 1 ? pc.point.y : pc.point.z);
-        decltype(pc.point.x) &target =
-            dim == 0 ? result.point.x : (dim == 1 ? result.point.y : result.point.z);
-        for (int i = 0; i < indices.size(); i++)
-            target[ i ] = source[ indices[ i ] ];
-    }
-    if (hasNormal) {
-#pragma omp parallel for default(none) shared(pc, result, indices)
-        for (int dim = 0; dim < 3; dim++) {
-            const decltype(pc.point.x) &source =
-                dim == 0 ? pc.normal.x : (dim == 1 ? pc.normal.y : pc.normal.z);
-            decltype(pc.point.x) &target =
-                dim == 0 ? result.normal.x : (dim == 1 ? result.normal.y : result.normal.z);
-            for (int i = 0; i < indices.size(); i++)
-                target[ i ] = source[ indices[ i ] ];
+#pragma omp parallel default(none) shared(pc, result, indices, hasNormal, size)
+    {
+#pragma omp for nowait
+        for (int i = 0; i < size; i++)
+            result.point.x[ i ] = pc.point.x[ indices[ i ] ];
+#pragma omp for nowait
+        for (int i = 0; i < size; i++)
+            result.point.y[ i ] = pc.point.y[ indices[ i ] ];
+#pragma omp for nowait
+        for (int i = 0; i < size; i++)
+            result.point.z[ i ] = pc.point.z[ indices[ i ] ];
+
+        if (hasNormal) {
+#pragma omp for nowait
+            for (int i = 0; i < size; i++)
+                result.normal.x[ i ] = pc.normal.x[ indices[ i ] ];
+#pragma omp for nowait
+            for (int i = 0; i < size; i++)
+                result.normal.y[ i ] = pc.normal.y[ indices[ i ] ];
+#pragma omp for nowait
+            for (int i = 0; i < size; i++)
+                result.normal.z[ i ] = pc.normal.z[ indices[ i ] ];
         }
     }
 
@@ -393,7 +432,8 @@ void estimateNormal(ppf::PointCloud &pc, const VectorI &indices, const KDTree &t
             auto normal = pc.normal[ idx ];
             auto point  = pc.point[ idx ];
             if (check(normal.dot(pc.viewPoint - point)))
-                pc.normal.set(idx, -normal);
+                normal = -normal;
+            pc.normal.set(idx, normal);
         }
     } else {
         // normal's direction default toward z axis
@@ -402,11 +442,13 @@ void estimateNormal(ppf::PointCloud &pc, const VectorI &indices, const KDTree &t
             auto idx    = indices[ i ];
             auto normal = pc.normal[ idx ];
             if (check(normal.dot(Eigen::Vector3f::UnitZ())))
-                pc.normal.set(idx, -normal);
+                normal = -normal;
+            pc.normal.set(idx, normal);
         }
     }
 }
 
+/*
 void estimateNormalMLS(ppf::PointCloud &pc, const VectorI &indices, const KDTree &kdtree,
                        float radius, int order, bool invert) {
     // Compute the number of coefficients
@@ -529,6 +571,7 @@ void estimateNormalMLS(ppf::PointCloud &pc, const VectorI &indices, const KDTree
         }
     }
 }
+*/
 
 Eigen::Matrix4f transformRT(const Eigen::Vector3f &p, const Eigen::Vector3f &n) {
     float           angle = acos(n.x());    // rotation angle
@@ -893,7 +936,7 @@ VectorI computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &n1, const V
         xsimd::store(&result[ i ], hash);
     }
 
-    for (int i = vec_size; i < size; i++)
+    for (auto i = vec_size; i < size; i++)
         result[ i ] = computePPF(p1, n1, {p2x[ i ], p2y[ i ], p2z[ i ]},
                                  {n2x[ i ], n2y[ i ], n2z[ i ]}, angleStep, distStep);
 
@@ -934,12 +977,12 @@ VectorF computeAlpha(Eigen::Matrix4f &rt, const VectorF &p2x, const VectorF &p2y
         auto z = r20 * rp2x + r21 * rp2y + r22 * rp2z + t2;
 
         auto alpha  = xsimd::atan2(z * inverse, y);
-        auto ialpha = alpha * inverse;
-        auto t      = xsimd::select(xsimd::sin(alpha) * z > 0, ialpha, alpha);
+        auto iAlpha = alpha * inverse;
+        auto t      = xsimd::select(xsimd::sin(alpha) * z > 0, iAlpha, alpha);
         xsimd::store(&result[ i ], t);
     }
 
-    for (int i = vec_size; i < size; i++)
+    for (auto i = vec_size; i < size; i++)
         result[ i ] = computeAlpha(rt, {p2x[ i ], p2y[ i ], p2z[ i ]});
 
     return result;

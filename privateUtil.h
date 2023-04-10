@@ -75,8 +75,8 @@ void estimateNormal(ppf::PointCloud &pc, const VectorI &indices, const KDTree &k
  * @param order
  * @param invert    Invert normal direction
  */
-void estimateNormalMLS(ppf::PointCloud &pc, const VectorI &indices, const KDTree &kdtree,
-                       float radius, int order, bool invert = false);
+//void estimateNormalMLS(ppf::PointCloud &pc, const VectorI &indices, const KDTree &kdtree,
+//                       float radius, int order, bool invert = false);
 
 /**
  * @brief transformRT
