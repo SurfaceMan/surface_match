@@ -39,6 +39,8 @@ PointCloud sampleMesh(const ppf::PointCloud &pc, float radius) {
     std::vector<float>           areas(triangleSize);
     std::vector<Eigen::Vector3f> normals(triangleSize);
     float                        area = 0;
+
+#pragma omp parallel for default(none) shared(triangleSize, pc, areas, normals) reduction(+ : area)
     for (int i = 0; i < triangleSize; i++) {
         auto face = pc.face[ i ];
         auto p0   = pc.point[ face[ 0 ] ];
