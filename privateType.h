@@ -5,7 +5,12 @@
 #include <ppf.h>
 #include <xsimd/xsimd.hpp>
 
+#define _USE_MATH_DEFINES
+#include <math.h>
+
 namespace ppf {
+
+const float M_2PI = static_cast<float>(2 * M_PI);
 
 template <typename T> struct Vector3 {
 public:

@@ -5,32 +5,28 @@
 #include <privateType.h>
 #include <privateUtil.h>
 #include <serialize.h>
-#include <util.h>
 
 #include <Eigen/Geometry>
 #include <fstream>
 #include <map>
 #include <numeric>
-#include <set>
 #include <utility>
 
 #include <filePLY.h>
 
-#define _USE_MATH_DEFINES
-#include <math.h>
-
 namespace ppf {
 
-const int   VERSION    = 100;
-const int   MAGIC      = 0x7F27F;
-const int   MaxThreads = 8;
-const float M_2PI      = static_cast<float>(2 * M_PI);
+const int VERSION    = 100;
+const int MAGIC      = 0x7F27F;
+const int MaxThreads = 8;
 
 Detector::Detector()
     : impl_(nullptr) {
+#ifdef __OMP_H
     auto numThreads = omp_get_max_threads();
     if (numThreads > MaxThreads)
         omp_set_num_threads(MaxThreads);
+#endif
 }
 
 Detector::~Detector() {
@@ -303,20 +299,20 @@ void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
         VectorF nx(rows);
         VectorF ny(rows);
         VectorF nz(rows);
-        int     i = 0;
+        int     neighborCount = 0;
         for (auto &[ idx, dist ] : indices) {
             if (pointIndex == idx)
                 continue;
 
-            auto &p = scene.point;
-            auto &n = scene.normal;
-            px[ i ] = p.x[ idx ];
-            py[ i ] = p.y[ idx ];
-            pz[ i ] = p.z[ idx ];
-            nx[ i ] = n.x[ idx ];
-            ny[ i ] = n.y[ idx ];
-            nz[ i ] = n.z[ idx ];
-            i++;
+            auto &p             = scene.point;
+            auto &n             = scene.normal;
+            px[ neighborCount ] = p.x[ idx ];
+            py[ neighborCount ] = p.y[ idx ];
+            pz[ neighborCount ] = p.z[ idx ];
+            nx[ neighborCount ] = n.x[ idx ];
+            ny[ neighborCount ] = n.y[ idx ];
+            nz[ neighborCount ] = n.z[ idx ];
+            neighborCount++;
         }
 
         auto ppf   = computePPF(p1, n1, px, py, pz, nx, ny, nz, angleStep, distanceStep);
@@ -352,7 +348,7 @@ void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
             }
 
             alphaScene -= M_PI;
-            for (int i = vec_size; i < size; i++) {
+            for (auto i = vec_size; i < size; i++) {
                 float alphaAngle = angle[ i ] - alphaScene;
                 if (alphaAngle < 0)
                     alphaAngle += M_2PI;
@@ -362,9 +358,9 @@ void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
             }
 
             for (int i = 0; i < size; i++) {
-                auto iter = &accumulator[ id[ i ] * accElementSize ];
-                iter[ 0 ]++;
-                iter[ idxAngle[ i ] ]++;
+                auto addr = &accumulator[ id[ i ] * accElementSize ];
+                addr[ 0 ]++;
+                addr[ idxAngle[ i ] ]++;
             }
 
             // for (auto &feature : iter->second) {
@@ -383,51 +379,11 @@ void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
         }
 
         // [4]nms
-        auto cmp = [](const Candidate &a, const Candidate &b) { return a.vote > b.vote; };
-        std::multiset<Candidate, decltype(cmp)> maxVal(cmp);
-
-        auto      thre       = voteThreshold / 2.0f;
-        const int countLimit = 3;
-        for (int i = 0; i < refNum; i++) {
-            auto element = &accumulator[ i * accElementSize ];
-
-            if (element[ 0 ] < thre)
-                continue;
-
-            auto begin = element + 1;
-            auto end   = begin + angleNum;
-            auto iter  = std::max_element(begin, end);
-            int  j     = iter - begin;
-            auto vote  = *iter;
-            if (vote < thre)
-                continue;
-
-            vote += (j == 0) ? begin[ maxAngleIndex ] : begin[ j - 1 ];
-            vote += (j == maxAngleIndex) ? begin[ 0 ] : begin[ j + 1 ];
-
-            maxVal.emplace(vote, i, j);
-            if (maxVal.size() > countLimit)
-                maxVal.erase(--maxVal.end());
-        }
-        if (maxVal.empty())
+        Pose target(0);
+        if (!nms(target, accumulator, voteThreshold, refNum, angleNum, accElementSize,
+                 maxAngleIndex, modelSampled, rt))
             continue;
-
-        auto iT = rt.inverse();
-        thre    = maxVal.begin()->vote * 0.95;
-        for (auto &val : maxVal) {
-            if (val.vote < thre)
-                continue;
-
-            auto pMax = modelSampled.point[ val.refId ];
-            auto nMax = modelSampled.normal[ val.refId ];
-
-            float           alphaAngle = M_2PI * val.angleId / maxAngleIndex - M_PI;
-            Eigen::Matrix4f TPose      = iT * (xRotMat(alphaAngle) * transformRT(pMax, nMax));
-            Pose            pose(val.vote);
-            pose.updatePose(TPose);
-
-            poseList.push_back(pose);
-        }
+        poseList.emplace_back(target);
     }
     t2.release();
 
@@ -441,9 +397,9 @@ void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
     std::cout << "after cluster has items: " << cluster2.size() << std::endl;
 
     //[6] icp
-    ICP sparseIcp(ConvergenceCriteria(5, poseRefDistThreshold, sampleStep * 0.5, sampleStep));
+    ICP sparseIcp(ConvergenceCriteria(5, poseRefDistThreshold, sampleStep * 0.5f, sampleStep));
     ICP denseIcp(ConvergenceCriteria(param.poseRefNumSteps, poseRefDistThreshold,
-                                     reSampleStep * 0.5, sampleStep));
+                                     reSampleStep * 0.5f, sampleStep));
 
     VectorI indicesOfSampleScene2;
     if (param.densePoseRefinement) {
@@ -458,56 +414,14 @@ void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
     using Target = std::pair<float, Eigen::Matrix4f>;
     std::vector<Target> result; //[score, pose]
     for (auto &p : cluster2) {
-        auto pose  = p.pose;
-        auto score = p.numVotes;
-
-        if (score < voteThreshold)
+        if (p.numVotes < voteThreshold)
             continue;
 
-        if (param.sparsePoseRefinement) {
-            sceneKdtree.restore();
-            sceneKdtree.reduce(indicesOfSampleScene);
-            auto refined = sparseIcp.regist(impl_->sampledModel, scene, sceneKdtree, pose);
-            if (!refined.converged) {
-                std::cout << "sparsePoseRefinement not converge " << (int)refined.type << std::endl;
-                continue;
-            }
-
-            pose = refined.pose;
-            sceneKdtree.restore();
-            auto inlinerCount = inliner(transformPointCloud(impl_->sampledModel, pose, false),
-                                        sceneKdtree, poseRefScoringDist);
-            score             = inlinerCount / float(refNum);
-            if (score > 1.f)
-                score = 1.f;
-
-            std::cout << "sparsePoseRefinement score:" << score << std::endl;
-        }
-
-        if (param.sparsePoseRefinement && score < minScore)
-            continue;
-
-        if (param.sparsePoseRefinement && param.densePoseRefinement) {
-            sceneKdtree.restore();
-            sceneKdtree.reduce(indicesOfSampleScene2);
-            auto refined = denseIcp.regist(impl_->reSampledModel, scene, sceneKdtree, pose);
-            if (!refined.converged) {
-                std::cout << "densePoseRefinement not converge " << (int)refined.type << std::endl;
-                continue;
-            }
-
-            pose = refined.pose;
-            sceneKdtree.restore();
-            auto inlinerCount = inliner(transformPointCloud(impl_->reSampledModel, pose, false),
-                                        sceneKdtree, poseRefScoringDist);
-            score             = inlinerCount / float(impl_->reSampledModel.point.size());
-            if (score > 1.f)
-                score = 1.f;
-
-            std::cout << "densePoseRefinement score:" << score << std::endl;
-        }
-
-        if ((param.sparsePoseRefinement || param.densePoseRefinement) && (score < minScore))
+        float           score;
+        Eigen::Matrix4f pose;
+        if (!icp(p, score, pose, param, sparseIcp, denseIcp, sceneKdtree, modelSampled,
+                 impl_->reSampledModel, scene, indicesOfSampleScene, indicesOfSampleScene2,
+                 minScore, poseRefScoringDist))
             continue;
 
         result.emplace_back(score, pose);

@@ -1,8 +1,11 @@
 #pragma once
 
+#include <icp.h>
 #include <kdtree.h>
 #include <privateType.h>
 #include <type.h>
+
+#include <set>
 
 namespace ppf {
 
@@ -75,8 +78,8 @@ void estimateNormal(ppf::PointCloud &pc, const VectorI &indices, const KDTree &k
  * @param order
  * @param invert    Invert normal direction
  */
-//void estimateNormalMLS(ppf::PointCloud &pc, const VectorI &indices, const KDTree &kdtree,
-//                       float radius, int order, bool invert = false);
+// void estimateNormalMLS(ppf::PointCloud &pc, const VectorI &indices, const KDTree &kdtree,
+//                        float radius, int order, bool invert = false);
 
 /**
  * @brief transformRT
@@ -97,6 +100,15 @@ inline Eigen::Matrix4f xRotMat(float angle) {
 
     return T;
 }
+
+bool nms(Pose &target, const std::vector<int> &accumulator, float voteThreshold, int refNum,
+         int angleNum, int accElementSize, int maxAngleIndex, const PointCloud &modelSampled,
+         const Eigen::Matrix4f &rt);
+
+bool icp(const Pose &p, float &score, Eigen::Matrix4f &pose, const MatchParam &param,
+         const ICP &sparseIcp, const ICP &denseIcp, KDTree &sceneKdtree, const PointCloud &model,
+         const PointCloud &rModel, const PointCloud &scene, const VectorI &indicesOfSampleScene,
+         const VectorI &indicesOfSampleScene2, float minScore, float poseRefScoringDist);
 
 /**
  * @brief clusterPose   Cluster pose by distance/angle threshold

@@ -615,6 +615,103 @@ bool comparePose(const Pose &p1, const Pose &p2, float distanceThreshold, float 
     return (d < distanceThreshold && phi < angleThreshold);
 }
 
+bool nms(Pose &target, const std::vector<int> &accumulator, float voteThreshold, int refNum,
+         int angleNum, int accElementSize, int maxAngleIndex, const PointCloud &modelSampled,
+         const Eigen::Matrix4f &rt) {
+    auto cmp = [](const Candidate &a, const Candidate &b) { return a.vote > b.vote; };
+    std::multiset<Candidate, decltype(cmp)> maxVal(cmp);
+
+    auto      thre       = voteThreshold / 2.0f;
+    const int countLimit = 3;
+    for (int i = 0; i < refNum; i++) {
+        auto element = &accumulator[ i * accElementSize ];
+
+        if (element[ 0 ] < thre)
+            continue;
+
+        auto begin = element + 1;
+        auto end   = begin + angleNum;
+        auto iter  = std::max_element(begin, end);
+        int  j     = iter - begin;
+        auto vote  = *iter;
+        if (vote < thre)
+            continue;
+
+        vote += (j == 0) ? begin[ maxAngleIndex ] : begin[ j - 1 ];
+        vote += (j == maxAngleIndex) ? begin[ 0 ] : begin[ j + 1 ];
+
+        maxVal.emplace(vote, i, j);
+        if (maxVal.size() > countLimit)
+            maxVal.erase(--maxVal.end());
+    }
+    if (maxVal.empty())
+        return false;
+
+    auto iT = rt.inverse();
+    thre    = maxVal.begin()->vote * 0.95;
+    for (auto &val : maxVal) {
+        if (val.vote < thre)
+            continue;
+
+        auto pMax = modelSampled.point[ val.refId ];
+        auto nMax = modelSampled.normal[ val.refId ];
+
+        float           alphaAngle = M_2PI * val.angleId / maxAngleIndex - M_PI;
+        Eigen::Matrix4f TPose      = iT * (xRotMat(alphaAngle) * transformRT(pMax, nMax));
+        Pose            pose(val.vote);
+        pose.updatePose(TPose);
+
+        target = pose;
+    }
+
+    return true;
+}
+
+bool icp(float &score, Eigen::Matrix4f &pose, const ICP &icpAlign, KDTree &sceneKdtree,
+         const PointCloud &model, const PointCloud &scene, const VectorI &indicesOfSampleScene,
+         float poseRefScoringDist) {
+
+    sceneKdtree.restore();
+    sceneKdtree.reduce(indicesOfSampleScene);
+    auto refined = icpAlign.regist(model, scene, sceneKdtree, pose);
+    if (!refined.converged)
+        return false;
+
+    pose = refined.pose;
+    sceneKdtree.restore();
+    auto inlinerCount =
+        inliner(transformPointCloud(model, pose, false), sceneKdtree, poseRefScoringDist);
+    score = inlinerCount / float(model.point.size());
+    if (score > 1.f)
+        score = 1.f;
+
+    return true;
+}
+
+bool icp(const Pose &p, float &score, Eigen::Matrix4f &pose, const MatchParam &param,
+         const ICP &sparseIcp, const ICP &denseIcp, KDTree &sceneKdtree, const PointCloud &model,
+         const PointCloud &rModel, const PointCloud &scene, const VectorI &indicesOfSampleScene,
+         const VectorI &indicesOfSampleScene2, float minScore, float poseRefScoringDist) {
+    pose  = p.pose;
+    score = p.numVotes;
+
+    if (param.sparsePoseRefinement) {
+        auto aligned = icp(score, pose, sparseIcp, sceneKdtree, model, scene, indicesOfSampleScene,
+                           poseRefScoringDist);
+        if (!aligned || score < minScore)
+            return false;
+    }
+
+    if (param.sparsePoseRefinement && param.densePoseRefinement) {
+        auto aligned = icp(score, pose, denseIcp, sceneKdtree, rModel, scene, indicesOfSampleScene2,
+                           poseRefScoringDist);
+        if (!aligned || score < minScore)
+            return false;
+    }
+
+    return true;
+}
+
 std::vector<std::vector<Pose>> clusterPose(const std::vector<Pose> &poseList,
                                            float distanceThreshold, float angleThreshold) {
     auto sorted = sortPoses(poseList);
