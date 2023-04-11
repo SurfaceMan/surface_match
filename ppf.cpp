@@ -327,55 +327,8 @@ void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
             if (iter == end || isnan(alphaScene))
                 continue;
 
-            auto                 &angle     = iter->second.alphaAngle;
-            auto                 &id        = iter->second.refInd;
-            auto                  size      = angle.size();
-            constexpr std::size_t simd_size = xsimd::simd_type<float>::size;
-            std::size_t           vec_size  = size - size % simd_size;
-            if (size > 1024)
-                idxAngle.resize(size);
-
-            auto vSceneAngle = xsimd::broadcast(alphaScene) - vpi;
-            for (int i = 0; i < vec_size; i += simd_size) {
-                auto vAngle      = xsimd::load_aligned(&angle[ i ]);
-                auto vAlphaAngle = vAngle - vSceneAngle;
-                auto vAlpha = xsimd::select(vAlphaAngle > v2pi, vAlphaAngle - v2pi, vAlphaAngle);
-                vAlpha      = xsimd::select(vAlpha < 0, vAlpha + v2pi, vAlpha);
-
-                auto vId        = vMaxId * vAlpha; // xsimd::fma(vMaxId, vAlpha, vMaxIdHalf);
-                auto angleIndex = xsimd::batch_cast<uint32_t>(xsimd::floor(vId)) + 1;
-                xsimd::store_aligned(&idxAngle[ i ], angleIndex);
-            }
-
-            alphaScene -= M_PI;
-            for (auto i = vec_size; i < size; i++) {
-                float alphaAngle = angle[ i ] - alphaScene;
-                if (alphaAngle < 0)
-                    alphaAngle += M_2PI;
-                if (alphaAngle > M_2PI)
-                    alphaAngle -= M_2PI;
-                idxAngle[ i ] = floor(sMaxId * alphaAngle) + 1;
-            }
-
-            for (int i = 0; i < size; i++) {
-                auto addr = &accumulator[ id[ i ] * accElementSize ];
-                addr[ 0 ]++;
-                addr[ idxAngle[ i ] ]++;
-            }
-
-            // for (auto &feature : iter->second) {
-            //     auto &alphaModel = feature.alphaAngle;
-            //     float alphaAngle = alphaModel - alphaScene;
-            //     if (alphaAngle > (float)M_PI)
-            //         alphaAngle = alphaAngle - M_2PI;
-            //     else if (alphaAngle < (float)(-M_PI))
-            //         alphaAngle = alphaAngle + M_2PI;
-
-            //    int  angleIndex = floor(maxIdx * (alphaAngle / M_2PI + 0.5f));
-            //    auto iter       = &accumulator[ feature.refInd * accElementSize ];
-            //    iter[ 0 ]++;
-            //    iter[ angleIndex + 1 ]++;
-            //}
+            computeVote(accumulator, iter->second.refInd, iter->second.alphaAngle, idxAngle,
+                        alphaScene, vpi, v2pi, vMaxId, sMaxId, accElementSize);
         }
 
         // [4]nms
