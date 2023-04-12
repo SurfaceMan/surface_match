@@ -615,12 +615,13 @@ bool comparePose(const Pose &p1, const Pose &p2, float distanceThreshold, float 
     return (d < distanceThreshold && phi < angleThreshold);
 }
 
-void computeVote(std::vector<int> &accumulator, const VectorI &id, const VectorF &angle,
-                 VectorI &idxAngle, float alphaScene, float maxIdx, int accElementSize) {
-    auto vpi    = xsimd::broadcast((float)M_PI);
-    auto v2pi   = xsimd::broadcast((float)M_2PI);
-    auto sMaxId = maxIdx / M_2PI;
-    auto vMaxId = xsimd::broadcast(sMaxId);
+void computeVote(VectorI &accumulator, const VectorI &id, const VectorF &angle, VectorI &idxAngle,
+                 float alphaScene, float maxIdx, int accElementSize) {
+    auto vpi       = xsimd::broadcast((float)M_PI);
+    auto v2pi      = xsimd::broadcast((float)M_2PI);
+    auto sMaxId    = maxIdx / M_2PI;
+    auto vMaxId    = xsimd::broadcast(sMaxId);
+    auto startAddr = accumulator.data();
 
     auto                  size      = angle.size();
     constexpr std::size_t simd_size = xsimd::simd_type<float>::size;
@@ -650,7 +651,20 @@ void computeVote(std::vector<int> &accumulator, const VectorI &id, const VectorF
         idxAngle[ i ] = floor(sMaxId * alphaAngle) + 1;
     }
 
-    for (int i = 0; i < size; i++) {
+    // for (int i = 0; i < vec_size; i += simd_size) {
+    //     auto vId       = xsimd::load_aligned(&id[ i ]);
+    //     auto addrCount = vId * accElementSize;
+    //     auto addrAngle = addrCount + xsimd::load_aligned(&idxAngle[ i ]);
+    //
+    //    auto vCount = xsimd::batch<uint32_t>::gather(accumulator.data(), addrCount);
+    //    auto vAngle = xsimd::batch<uint32_t>::gather(accumulator.data(), addrAngle);
+    //    vCount++;
+    //    vAngle++;
+    //    vCount.scatter(accumulator.data(), addrCount);
+    //    vAngle.scatter(accumulator.data(), addrAngle);
+    //}
+
+    for (auto i = 0; i < size; i++) {
         auto addr = &accumulator[ id[ i ] * accElementSize ];
         addr[ 0 ]++;
         addr[ idxAngle[ i ] ]++;
@@ -663,7 +677,7 @@ void computeVote(std::vector<int> &accumulator, const VectorI &id, const VectorF
     //         alphaAngle = alphaAngle - M_2PI;
     //     else if (alphaAngle < (float)(-M_PI))
     //         alphaAngle = alphaAngle + M_2PI;
-
+    //
     //    int  angleIndex = floor(maxIdx * (alphaAngle / M_2PI + 0.5f));
     //    auto iter       = &accumulator[ feature.refInd * accElementSize ];
     //    iter[ 0 ]++;
@@ -671,8 +685,8 @@ void computeVote(std::vector<int> &accumulator, const VectorI &id, const VectorF
     //}
 }
 
-bool nms(Pose &target, const std::vector<int> &accumulator, float voteThreshold, int refNum,
-         int angleNum, int accElementSize, int maxAngleIndex, const PointCloud &modelSampled,
+bool nms(Pose &target, const VectorI &accumulator, float voteThreshold, int refNum, int angleNum,
+         int accElementSize, int maxAngleIndex, const PointCloud &modelSampled,
          const Eigen::Matrix4f &rt) {
     auto cmp = [](const Candidate &a, const Candidate &b) { return a.vote > b.vote; };
     std::multiset<Candidate, decltype(cmp)> maxVal(cmp);

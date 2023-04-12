@@ -259,7 +259,7 @@ void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
     float             maxIdx         = maxAngleIndex;
     auto              accElementSize = angleNum + 1;
     auto              accSize        = refNum * accElementSize;
-    std::vector<int>  accumulator(accSize);
+    VectorI           accumulator(accSize);
     VectorI           idxAngle(1024);
 
 #pragma omp declare reduction(vecCombine : std::vector<Pose> : omp_out.insert( \
