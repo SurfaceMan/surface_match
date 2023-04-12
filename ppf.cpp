@@ -260,21 +260,14 @@ void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
     auto              accElementSize = angleNum + 1;
     auto              accSize        = refNum * accElementSize;
     std::vector<int>  accumulator(accSize);
-
-    auto    vpi        = xsimd::broadcast((float)M_PI);
-    auto    v2pi       = xsimd::broadcast((float)M_2PI);
-    auto    sMaxId     = maxIdx / M_2PI;
-    auto    vMaxId     = xsimd::broadcast(sMaxId);
-    auto    maxIdHalf  = maxIdx * 0.5f;
-    auto    vMaxIdHalf = xsimd::broadcast(maxIdHalf);
-    VectorI idxAngle(1024);
+    VectorI           idxAngle(1024);
 
 #pragma omp declare reduction(vecCombine : std::vector<Pose> : omp_out.insert( \
         omp_out.end(), omp_in.begin(), omp_in.end()))
 #pragma omp parallel for firstprivate(accumulator, idxAngle) reduction(vecCombine : poseList)     \
     shared(keypoint, scene, sceneKdtree, squaredDiameter, voteThreshold, angleStep, distanceStep, \
-               accSize, hashTable, end, v2pi, vpi, vMaxId, M_2PI, sMaxId, maxAngleIndex, refNum,  \
-               angleNum, modelSampled, accElementSize) default(none)
+               accSize, hashTable, end, M_2PI, maxIdx, maxAngleIndex, refNum, angleNum,           \
+               modelSampled, accElementSize) default(none)
     for (int count = 0; count < keypoint.size(); count++) {
         auto pointIndex = keypoint[ count ];
         auto p1         = scene.point[ pointIndex ];
@@ -328,7 +321,7 @@ void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
                 continue;
 
             computeVote(accumulator, iter->second.refInd, iter->second.alphaAngle, idxAngle,
-                        alphaScene, vpi, v2pi, vMaxId, sMaxId, accElementSize);
+                        alphaScene, maxIdx, accElementSize);
         }
 
         // [4]nms

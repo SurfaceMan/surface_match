@@ -616,9 +616,12 @@ bool comparePose(const Pose &p1, const Pose &p2, float distanceThreshold, float 
 }
 
 void computeVote(std::vector<int> &accumulator, const VectorI &id, const VectorF &angle,
-                 VectorI &idxAngle, float alphaScene, const xsimd::batch<float> &vpi,
-                 const xsimd::batch<float> &v2pi, const xsimd::batch<float> &vMaxId, float sMaxId,
-                 int accElementSize) {
+                 VectorI &idxAngle, float alphaScene, float maxIdx, int accElementSize) {
+    auto vpi    = xsimd::broadcast((float)M_PI);
+    auto v2pi   = xsimd::broadcast((float)M_2PI);
+    auto sMaxId = maxIdx / M_2PI;
+    auto vMaxId = xsimd::broadcast(sMaxId);
+
     auto                  size      = angle.size();
     constexpr std::size_t simd_size = xsimd::simd_type<float>::size;
     std::size_t           vec_size  = size - size % simd_size;
