@@ -418,6 +418,8 @@ void Detector::load(const std::string &filename) {
     std::ifstream ifs(filename, std::ios::binary);
     if (!ifs.is_open())
         throw std::runtime_error("failed to open file:" + filename);
+    if (impl_)
+        delete impl_;
     impl_ = new IMPL;
 
     int magic;
