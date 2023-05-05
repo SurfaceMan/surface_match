@@ -615,6 +615,27 @@ bool comparePose(const Pose &p1, const Pose &p2, float distanceThreshold, float 
     return (d < distanceThreshold && phi < angleThreshold);
 }
 
+std::vector<int> createTable(int n, float model) {
+    std::vector<int> idx(n);
+
+    auto maxIdx = n - 1;
+    for (int i = 0; i < n; i++) {
+        float scene = -M_PI + M_2PI * float(i) / float(n);
+        auto  angle = (model - scene);
+
+        if (angle > M_PI)
+            angle -= M_2PI;
+        if (angle < -M_PI)
+            angle += M_2PI;
+
+        int angleIndex = floor(maxIdx * (angle / M_2PI + 0.5f) + 0.5);
+
+        idx[ i ] = angleIndex;
+    }
+
+    return idx;
+}
+
 void computeVote(VectorI &accumulator, const VectorI &id, const VectorF &angle, VectorI &idxAngle,
                  float alphaScene, float maxIdx, int accElementSize) {
     auto vpi       = xsimd::broadcast((float)M_PI);
@@ -849,9 +870,9 @@ Eigen::Quaternionf avgQuaternionMarkley(const std::vector<Eigen::Quaternionf> &q
     Eigen::EigenSolver<Eigen::Matrix4f> es(A);
     Eigen::MatrixXcf                    evecs =
         es.eigenvectors(); // 获取矩阵特征向量4*4，这里定义的MatrixXcd必须有c，表示获得的是complex复数矩阵
-    Eigen::MatrixXcf evals = es.eigenvalues();     // 获取矩阵特征值 4*1
-    Eigen::MatrixXf  evalsReal;                    // 注意这里定义的MatrixXd里没有c
-    evalsReal = evals.real();                      // 获取特征值实数部分
+    Eigen::MatrixXcf evals = es.eigenvalues(); // 获取矩阵特征值 4*1
+    Eigen::MatrixXf  evalsReal;                // 注意这里定义的MatrixXd里没有c
+    evalsReal = evals.real();                  // 获取特征值实数部分
     Eigen::MatrixXf::Index evalsMax;
     evalsReal.rowwise().sum().maxCoeff(&evalsMax); // 得到最大特征值的位置
 

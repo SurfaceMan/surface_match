@@ -101,6 +101,8 @@ inline Eigen::Matrix4f xRotMat(float angle) {
     return T;
 }
 
+std::vector<int> createTable(int n, float model);
+
 void computeVote(VectorI &accumulator, const VectorI &id, const VectorF &angle, VectorI &idxAngle,
                  float alphaScene, float maxId, int accElementSize);
 
