@@ -143,7 +143,7 @@ void Detector::trainModel(PointCloud_t model_, float samplingDistanceRel, TrainP
         auto alpha = computeAlpha(rt, sampledModel.point.x, sampledModel.point.y,
                                   sampledModel.point.z, maxIdx);
         for (int j = 0; j < size; j++) {
-            if (i == j || isnan(alpha[ j ]))
+            if (i == j)
                 continue;
             hashTable[ ppf[ j ] ].push_back(i, alpha[ j ]);
         }
@@ -317,7 +317,7 @@ void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
             auto alphaScene = alpha[ j ];
             auto hash       = ppf[ j ];
             auto iter       = hashTable.find(hash);
-            if (iter == end || isnan(alphaScene))
+            if (iter == end)
                 continue;
 
             computeVote(accumulator, iter->second.refInd, iter->second.alphaAngle, idxAngle,

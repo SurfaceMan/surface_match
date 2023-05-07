@@ -661,7 +661,7 @@ void computeVote(VectorI &accumulator, const VectorI &id, const VectorI &angle, 
     for (auto i = 0; i < size; i++) {
         auto addr = &accumulator[ id[ i ] * accElementSize ];
         addr[ 0 ]++;
-        addr[ idxAngle[ i ] ]++;
+        addr[ idxAngle[ i ] + 1 ]++;
     }
 
     // for (auto &feature : iter->second) {
