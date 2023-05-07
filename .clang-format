@@ -5,19 +5,27 @@ AccessModifierOffset: -4
 # 括号之后,水平对齐参数: Align DontAlign AlwaysBreak
 AlignAfterOpenBracket: Align
 # 连续的赋值时,对齐所有的等号
-AlignConsecutiveAssignments: true
+AlignConsecutiveAssignments:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
+  AlignCompound: true
+  PadOperators: true
 # 连续声明时，对齐所有声明的变量名
-AlignConsecutiveDeclarations: true
-# 左对齐换行(使用反斜杠换行)的反斜杠 
-AlignEscapedNewlinesLeft: true
-# 水平对齐二元和三元表达式的操作数 
+AlignConsecutiveDeclarations:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
+  AlignCompound: true
+  PadOperators: true
+# 水平对齐二元和三元表达式的操作数
 AlignOperands: true
 # 对齐连续的尾随的注释  
 AlignTrailingComments: true
 # 允许函数声明的所有参数在放在下一行  
 AllowAllParametersOfDeclarationOnNextLine: true
 # 允许短的块放在同一行  
-AllowShortBlocksOnASingleLine : false
+AllowShortBlocksOnASingleLine : Always
 # 允许短的case标签放在同一行
 AllowShortCaseLabelsOnASingleLine: false
 # 允许短的函数放在同一行: None, InlineOnly(定义在类中), Empty(空函数), Inline(定义在类中，空函数), All 
@@ -44,8 +52,6 @@ MaxEmptyLinesToKeep: 1
 ObjCSpaceAfterProperty: true
 # OC block后面的缩进
 ObjCBlockIndentWidth: 4
-# 是否允许短方法单行
-AllowShortFunctionsOnASingleLine: false
 # 换行的时候对齐操作符
 #AlignOperands: true
 # 中括号两边空格 [] 

@@ -663,12 +663,12 @@ bool nms(Pose &target, const VectorI &accumulator, float voteThreshold, int refN
     auto cmp = [](const Candidate &a, const Candidate &b) { return a.vote > b.vote; };
     std::multiset<Candidate, decltype(cmp)> maxVal(cmp);
 
-    auto      thre       = voteThreshold / 2.0f;
+    auto      halfThreshold = voteThreshold / 2.0f;
     const int countLimit = 3;
     for (int i = 0; i < refNum; i++) {
         auto element = &accumulator[ i * accElementSize ];
 
-        if (element[ 0 ] < thre)
+        if (element[ 0 ] < halfThreshold)
             continue;
 
         auto begin = element + 1;
@@ -676,7 +676,7 @@ bool nms(Pose &target, const VectorI &accumulator, float voteThreshold, int refN
         auto iter  = std::max_element(begin, end);
         int  j     = iter - begin;
         auto vote  = *iter;
-        if (vote < thre)
+        if (vote < halfThreshold)
             continue;
 
         vote += (j == 0) ? begin[ maxAngleIndex ] : begin[ j - 1 ];
@@ -690,9 +690,9 @@ bool nms(Pose &target, const VectorI &accumulator, float voteThreshold, int refN
         return false;
 
     auto iT = rt.inverse();
-    thre    = maxVal.begin()->vote * 0.95;
+    halfThreshold = maxVal.begin()->vote * 0.95;
     for (auto &val : maxVal) {
-        if (val.vote < thre)
+        if (val.vote < halfThreshold)
             continue;
 
         auto pMax = modelSampled.point[ val.refId ];

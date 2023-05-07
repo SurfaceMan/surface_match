@@ -52,15 +52,15 @@ BoundingBox computeBoundingBox(const ppf::PointCloud &pc, const VectorI &validIn
  * @brief samplePointCloud Sample point cloud by radius
  * @param tree  KD-tree
  * @param sampleStep Sample radius
- * @param indicesOfIndices Indices of keeped indices in the order which build kdtree
- * @return Indices of element which kepp
+ * @param indicesOfIndices Indices of kept indices in the order which build kdtree
+ * @return Indices of element which kept
  */
 VectorI samplePointCloud(const KDTree &tree, float sampleStep, VectorI *indicesOfIndices = nullptr);
 
 /**
  * @brief estimateNormal Estimate normal of point cloud
  * @param pc    Input point cloud
- * @param indices   Which points to estiamte normal
+ * @param indices   Which points to estimate normal
  * @param kdtree    Kdtree to find neighbor
  * @param k The count of neighbors to compute normal
  * @param smooth    Smooth normal by neighbor's normal
@@ -100,8 +100,6 @@ inline Eigen::Matrix4f xRotMat(float angle) {
 
     return T;
 }
-
-std::vector<int> createTable(int n, float model);
 
 void computeVote(VectorI &accumulator, const VectorI &id, const VectorI &angle, VectorI &idxAngle,
                  uint32_t alphaScene, uint32_t angleNum, int accElementSize,

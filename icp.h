@@ -38,10 +38,10 @@ struct ConvergenceResult {
     Eigen::Matrix4f pose; // last pose refined
     ConvergenceType type; // which cause converge
 
-    float mse;          // last mse
-    float convergeRate; // last converge rate
-    int   iterations;   // last iteration
-    bool  converged;    // whether be converged
+    float mse;            // last mse
+    float convergeRate;   // last converge rate
+    int   iterations;     // last iteration
+    bool  converged;      // whether be converged
 };
 
 class ICP {
@@ -57,8 +57,9 @@ public:
      * @param initPose source initial pose
      * @return ConvergenceResult
      */
-    ConvergenceResult regist(const PointCloud &src, const PointCloud &dst,
-                             const Eigen::Matrix4f &initPose = Eigen::Matrix4f::Identity()) const;
+    [[nodiscard]] ConvergenceResult
+        regist(const PointCloud &src, const PointCloud &dst,
+               const Eigen::Matrix4f &initPose = Eigen::Matrix4f::Identity()) const;
 
     /**
      * @brief register source to target
@@ -69,8 +70,9 @@ public:
      * @param initPose source initial pose
      * @return ConvergenceResult
      */
-    ConvergenceResult regist(const PointCloud &src, const PointCloud &dst, const KDTree &kdtree,
-                             const Eigen::Matrix4f &initPose = Eigen::Matrix4f::Identity()) const;
+    [[nodiscard]] ConvergenceResult
+        regist(const PointCloud &src, const PointCloud &dst, const KDTree &kdtree,
+               const Eigen::Matrix4f &initPose = Eigen::Matrix4f::Identity()) const;
 
     /**
      * @brief register source to target
@@ -80,8 +82,9 @@ public:
      * @param initPose source initial pose
      * @return std::vector<ConvergenceResult> same order as initPose
      */
-    std::vector<ConvergenceResult> regist(const PointCloud &src, const PointCloud &dst,
-                                          const std::vector<Eigen::Matrix4f> &initPose) const;
+    [[nodiscard]] std::vector<ConvergenceResult>
+        regist(const PointCloud &src, const PointCloud &dst,
+               const std::vector<Eigen::Matrix4f> &initPose) const;
 
     /**
      * @brief register source to target
@@ -92,9 +95,9 @@ public:
      * @param initPose source initial pose
      * @return ConvergenceResult
      */
-    std::vector<ConvergenceResult> regist(const PointCloud &src, const PointCloud &dst,
-                                          const KDTree                       &kdtree,
-                                          const std::vector<Eigen::Matrix4f> &initPose) const;
+    [[nodiscard]] std::vector<ConvergenceResult>
+        regist(const PointCloud &src, const PointCloud &dst, const KDTree &kdtree,
+               const std::vector<Eigen::Matrix4f> &initPose) const;
 
 private:
     ConvergenceCriteria criteria_;

@@ -228,7 +228,7 @@ void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
               << "scene keypoint point size:" << keypoint.size() << std::endl;
 
     //[2.3] data from param
-    float voteThreshold  = refNum * minScore;
+    float voteThreshold  = static_cast<float>(refNum) * minScore;
     float maxOverlapDist = 0;
     if (param.maxOverlapDistRel > 0)
         maxOverlapDist = modelDiameter * param.maxOverlapDistRel;
@@ -282,7 +282,7 @@ void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
         std::vector<std::pair<uint32_t, float>> indices;
         auto searched = sceneKdtree.index->radiusSearch(&p1[ 0 ], squaredDiameter, indices,
                                                         nanoflann::SearchParams(32, 0, false));
-        if (searched < voteThreshold)
+        if (searched < static_cast<int>(voteThreshold))
             continue;
 
         auto    rows = searched - 1;
@@ -326,8 +326,8 @@ void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
 
         // [4]nms
         Pose target(0);
-        if (!nms(target, accumulator, voteThreshold, refNum, angleNum, accElementSize,
-                 maxAngleIndex, modelSampled, rt))
+        if (!nms(target, accumulator, voteThreshold, static_cast<int>(refNum), angleNum,
+                 accElementSize, maxAngleIndex, modelSampled, rt))
             continue;
         poseList.emplace_back(target);
     }
@@ -412,8 +412,8 @@ void Detector::load(const std::string &filename) {
     std::ifstream ifs(filename, std::ios::binary);
     if (!ifs.is_open())
         throw std::runtime_error("failed to open file:" + filename);
-    if (impl_)
-        delete impl_;
+
+    delete impl_;
     impl_ = new IMPL;
 
     int magic;
