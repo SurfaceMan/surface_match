@@ -103,8 +103,8 @@ inline Eigen::Matrix4f xRotMat(float angle) {
 
 std::vector<int> createTable(int n, float model);
 
-void computeVote(VectorI &accumulator, const VectorI &id, const VectorF &angle, VectorI &idxAngle,
-                 float alphaScene, float maxId, int accElementSize);
+void computeVote(VectorI &accumulator, const VectorI &id, const VectorI &angle, VectorI &idxAngle,
+                 uint32_t alphaScene, int maxId, int accElementSize, VectorI &angleTable);
 
 bool nms(Pose &target, const VectorI &accumulator, float voteThreshold, int refNum, int angleNum,
          int accElementSize, int maxAngleIndex, const PointCloud &modelSampled,
@@ -181,7 +181,8 @@ VectorI computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &n1, const V
                    const VectorF &p2y, const VectorF &p2z, const VectorF &n2x, const VectorF &n2y,
                    const VectorF &n2z, float angleStep, float distStep);
 
-VectorF computeAlpha(Eigen::Matrix4f &rt, const VectorF &p2x, const VectorF &p2y,
-                     const VectorF &p2z);
+VectorI computeAlpha(Eigen::Matrix4f &rt, const VectorF &p2x, const VectorF &p2y,
+                     const VectorF &p2z, int maxIdx);
 
+VectorI computeAngleTable(int n);
 } // namespace ppf

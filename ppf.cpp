@@ -72,6 +72,7 @@ void Detector::trainModel(PointCloud_t model_, float samplingDistanceRel, TrainP
     float distanceStep = modelDiameter * param.featDistanceStepRel;
     float angleStep    = M_2PI / (float)param.featAngleResolution;
     bool  hasNormal    = model.hasNormal();
+    int   maxIdx       = param.featAngleResolution - 1;
 
     // mesh
     if (!model.face.empty()) {
@@ -87,6 +88,7 @@ void Detector::trainModel(PointCloud_t model_, float samplingDistanceRel, TrainP
     impl_                      = new IMPL;
     impl_->samplingDistanceRel = samplingDistanceRel;
     impl_->param               = param;
+    impl_->angleTable          = computeAngleTable(param.featAngleResolution);
 
     Timer  t("model kdtree");
     KDTree kdtree(model.point, 10, model.box, validIndices);
@@ -126,7 +128,7 @@ void Detector::trainModel(PointCloud_t model_, float samplingDistanceRel, TrainP
 #pragma omp declare reduction( \
         mapCombine : gtl::flat_hash_map<uint32_t, Feature> : merge(omp_out, omp_in))
 #pragma omp parallel for reduction(mapCombine : hashTable) \
-    shared(size, sampledModel, angleStep, distanceStep) default(none)
+    shared(size, sampledModel, angleStep, distanceStep, maxIdx) default(none)
     for (int i = 0; i < size; i++) {
         auto p1 = sampledModel.point[ i ];
         auto n1 = sampledModel.normal[ i ];
@@ -135,11 +137,11 @@ void Detector::trainModel(PointCloud_t model_, float samplingDistanceRel, TrainP
             continue;
         auto rt = transformRT(p1, n1);
 
-        auto ppf = computePPF(p1, n1, sampledModel.point.x, sampledModel.point.y,
-                              sampledModel.point.z, sampledModel.normal.x, sampledModel.normal.y,
-                              sampledModel.normal.z, angleStep, distanceStep);
-        auto alpha =
-            computeAlpha(rt, sampledModel.point.x, sampledModel.point.y, sampledModel.point.z);
+        auto ppf   = computePPF(p1, n1, sampledModel.point.x, sampledModel.point.y,
+                                sampledModel.point.z, sampledModel.normal.x, sampledModel.normal.y,
+                                sampledModel.normal.z, angleStep, distanceStep);
+        auto alpha = computeAlpha(rt, sampledModel.point.x, sampledModel.point.y,
+                                  sampledModel.point.z, maxIdx);
         for (int j = 0; j < size; j++) {
             if (i == j || isnan(alpha[ j ]))
                 continue;
@@ -192,6 +194,7 @@ void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
     auto  refNum          = impl_->sampledModel.point.size();
     auto &hashTable       = impl_->hashTable;
     auto &modelSampled    = impl_->sampledModel;
+    auto &angleTable      = impl_->angleTable;
     int   maxAngleIndex   = angleNum - 1;
     float squaredDiameter = modelDiameter * modelDiameter;
     float reSampleStep    = modelDiameter * impl_->param.poseRefRelSamplingDistance;
@@ -256,7 +259,6 @@ void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
     Timer             t2("scene ppf");
     std::vector<Pose> poseList;
     auto              end            = hashTable.end();
-    float             maxIdx         = maxAngleIndex;
     auto              accElementSize = angleNum + 1;
     auto              accSize        = refNum * accElementSize;
     VectorI           accumulator(accSize);
@@ -266,8 +268,8 @@ void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
         omp_out.end(), omp_in.begin(), omp_in.end()))
 #pragma omp parallel for firstprivate(accumulator, idxAngle) reduction(vecCombine : poseList)     \
     shared(keypoint, scene, sceneKdtree, squaredDiameter, voteThreshold, angleStep, distanceStep, \
-               accSize, hashTable, end, M_2PI, maxIdx, maxAngleIndex, refNum, angleNum,           \
-               modelSampled, accElementSize) default(none)
+               accSize, hashTable, end, M_2PI, maxAngleIndex, refNum, angleNum, modelSampled,     \
+               accElementSize, maxAngleIndex, angleTable) default(none)
     for (int count = 0; count < keypoint.size(); count++) {
         auto pointIndex = keypoint[ count ];
         auto p1         = scene.point[ pointIndex ];
@@ -310,18 +312,18 @@ void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
 
         auto ppf   = computePPF(p1, n1, px, py, pz, nx, ny, nz, angleStep, distanceStep);
         auto rt    = transformRT(p1, n1);
-        auto alpha = computeAlpha(rt, px, py, pz);
+        auto alpha = computeAlpha(rt, px, py, pz, maxAngleIndex);
         memset(accumulator.data(), 0, accSize * sizeof(int));
 
         for (std::size_t j = 0; j < ppf.size(); j++) {
-            float alphaScene = alpha[ j ];
-            auto  hash       = ppf[ j ];
-            auto  iter       = hashTable.find(hash);
+            auto alphaScene = alpha[ j ];
+            auto hash       = ppf[ j ];
+            auto iter       = hashTable.find(hash);
             if (iter == end || isnan(alphaScene))
                 continue;
 
             computeVote(accumulator, iter->second.refInd, iter->second.alphaAngle, idxAngle,
-                        alphaScene, maxIdx, accElementSize);
+                        alphaScene, maxAngleIndex, accElementSize, angleTable);
         }
 
         // [4]nms
@@ -404,6 +406,7 @@ void Detector::save(const std::string &filename) const {
     serialize(&of, impl_->sampledModel);
     serialize(&of, impl_->reSampledModel);
     serialize(&of, impl_->hashTable);
+    serialize(&of, impl_->angleTable);
     of.close();
 }
 
@@ -426,6 +429,7 @@ void Detector::load(const std::string &filename) {
     deserialize(&ifs, impl_->sampledModel);
     deserialize(&ifs, impl_->reSampledModel);
     deserialize(&ifs, impl_->hashTable);
+    deserialize(&ifs, impl_->angleTable);
     ifs.close();
 }
 

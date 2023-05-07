@@ -636,13 +636,11 @@ std::vector<int> createTable(int n, float model) {
     return idx;
 }
 
-void computeVote(VectorI &accumulator, const VectorI &id, const VectorF &angle, VectorI &idxAngle,
-                 float alphaScene, float maxIdx, int accElementSize) {
-    auto vpi       = xsimd::broadcast((float)M_PI);
-    auto v2pi      = xsimd::broadcast((float)M_2PI);
-    auto sMaxId    = maxIdx / M_2PI;
-    auto vMaxId    = xsimd::broadcast(sMaxId);
-    auto startAddr = accumulator.data();
+void computeVote(VectorI &accumulator, const VectorI &id, const VectorI &angle, VectorI &idxAngle,
+                 uint32_t alphaScene, int maxIdx, int accElementSize, VectorI &angleTable) {
+    uint32_t angleNum = maxIdx + 1;
+    auto     vNum     = xsimd::broadcast(angleNum);
+    auto     vScene   = xsimd::broadcast(alphaScene);
 
     auto                  size      = angle.size();
     constexpr std::size_t simd_size = xsimd::simd_type<float>::size;
@@ -650,40 +648,16 @@ void computeVote(VectorI &accumulator, const VectorI &id, const VectorF &angle, 
     if (size > 1024)
         idxAngle.resize(size);
 
-    auto vSceneAngle = xsimd::broadcast(alphaScene) - vpi;
     for (int i = 0; i < vec_size; i += simd_size) {
-        auto vAngle      = xsimd::load_aligned(&angle[ i ]);
-        auto vAlphaAngle = vAngle - vSceneAngle;
-        auto vAlpha      = xsimd::select(vAlphaAngle > v2pi, vAlphaAngle - v2pi, vAlphaAngle);
-        vAlpha           = xsimd::select(vAlpha < 0, vAlpha + v2pi, vAlpha);
-
-        auto vId        = vMaxId * vAlpha; // xsimd::fma(vMaxId, vAlpha, vMaxIdHalf);
-        auto angleIndex = xsimd::batch_cast<uint32_t>(xsimd::floor(vId)) + 1;
-        xsimd::store_aligned(&idxAngle[ i ], angleIndex);
+        auto vAngle = xsimd::load_aligned(&angle[ i ]);
+        auto idx    = xsimd::fma(vNum, vAngle, vScene);
+        auto target = xsimd::batch<uint32_t>::gather(angleTable.data(), idx);
+        xsimd::store_aligned(&idxAngle[ i ], target);
     }
-
-    alphaScene -= M_PI;
     for (auto i = vec_size; i < size; i++) {
-        float alphaAngle = angle[ i ] - alphaScene;
-        if (alphaAngle < 0)
-            alphaAngle += M_2PI;
-        if (alphaAngle > M_2PI)
-            alphaAngle -= M_2PI;
-        idxAngle[ i ] = floor(sMaxId * alphaAngle) + 1;
+        auto idx      = angleNum * angle[ i ] + alphaScene;
+        idxAngle[ i ] = angleTable[ idx ];
     }
-
-    // for (int i = 0; i < vec_size; i += simd_size) {
-    //     auto vId       = xsimd::load_aligned(&id[ i ]);
-    //     auto addrCount = vId * accElementSize;
-    //     auto addrAngle = addrCount + xsimd::load_aligned(&idxAngle[ i ]);
-    //
-    //    auto vCount = xsimd::batch<uint32_t>::gather(accumulator.data(), addrCount);
-    //    auto vAngle = xsimd::batch<uint32_t>::gather(accumulator.data(), addrAngle);
-    //    vCount++;
-    //    vAngle++;
-    //    vCount.scatter(accumulator.data(), addrCount);
-    //    vAngle.scatter(accumulator.data(), addrAngle);
-    //}
 
     for (auto i = 0; i < size; i++) {
         auto addr = &accumulator[ id[ i ] * accElementSize ];
@@ -870,9 +844,9 @@ Eigen::Quaternionf avgQuaternionMarkley(const std::vector<Eigen::Quaternionf> &q
     Eigen::EigenSolver<Eigen::Matrix4f> es(A);
     Eigen::MatrixXcf                    evecs =
         es.eigenvectors(); // 获取矩阵特征向量4*4，这里定义的MatrixXcd必须有c，表示获得的是complex复数矩阵
-    Eigen::MatrixXcf evals = es.eigenvalues(); // 获取矩阵特征值 4*1
-    Eigen::MatrixXf  evalsReal;                // 注意这里定义的MatrixXd里没有c
-    evalsReal = evals.real();                  // 获取特征值实数部分
+    Eigen::MatrixXcf evals = es.eigenvalues();     // 获取矩阵特征值 4*1
+    Eigen::MatrixXf  evalsReal;                    // 注意这里定义的MatrixXd里没有c
+    evalsReal = evals.real();                      // 获取特征值实数部分
     Eigen::MatrixXf::Index evalsMax;
     evalsReal.rowwise().sum().maxCoeff(&evalsMax); // 得到最大特征值的位置
 
@@ -1133,8 +1107,8 @@ VectorI computePPF(const Eigen::Vector3f &p1, const Eigen::Vector3f &n1, const V
     return result;
 }
 
-VectorF computeAlpha(Eigen::Matrix4f &rt, const VectorF &p2x, const VectorF &p2y,
-                     const VectorF &p2z) {
+VectorI computeAlpha(Eigen::Matrix4f &rt, const VectorF &p2x, const VectorF &p2y,
+                     const VectorF &p2z, int maxIdx) {
     // auto r00 = xsimd::broadcast(rt(0, 0));
     // auto r01 = xsimd::broadcast(rt(0, 1));
     // auto r02 = xsimd::broadcast(rt(0, 2));
@@ -1152,10 +1126,15 @@ VectorF computeAlpha(Eigen::Matrix4f &rt, const VectorF &p2x, const VectorF &p2y
     auto inverse = xsimd::broadcast(-1.f);
     // auto zero    = xsimd::broadcast(0.f);
 
+    auto dPi     = float(1. / (M_PI * 2.)) * (float)maxIdx;
+    auto offset  = 0.5f * (float)maxIdx + 0.5f;
+    auto vDPi    = xsimd::broadcast(dPi);
+    auto vOffset = xsimd::broadcast(offset);
+
     auto                  size      = p2x.size();
     constexpr std::size_t simd_size = xsimd::simd_type<float>::size;
     std::size_t           vec_size  = size - size % simd_size;
-    VectorF               result(size);
+    VectorI               result(size);
 
     for (int i = 0; i < vec_size; i += simd_size) {
         auto rp2x = xsimd::load(&p2x[ i ]);
@@ -1169,11 +1148,38 @@ VectorF computeAlpha(Eigen::Matrix4f &rt, const VectorF &p2x, const VectorF &p2y
         auto alpha  = xsimd::atan2(z * inverse, y);
         auto iAlpha = alpha * inverse;
         auto t      = xsimd::select(xsimd::sin(alpha) * z > 0, iAlpha, alpha);
-        xsimd::store(&result[ i ], t);
+        auto idx    = xsimd::batch_cast<uint32_t>(xsimd::fma(t, vDPi, vOffset));
+        xsimd::store(&result[ i ], idx);
     }
 
-    for (auto i = vec_size; i < size; i++)
-        result[ i ] = computeAlpha(rt, {p2x[ i ], p2y[ i ], p2z[ i ]});
+    for (auto i = vec_size; i < size; i++) {
+        auto alpha  = computeAlpha(rt, {p2x[ i ], p2y[ i ], p2z[ i ]});
+        result[ i ] = alpha * dPi + offset;
+    }
+
+    return result;
+}
+
+int startIndex(int n) {
+    auto maxIdx     = n - 1;
+    int  angleIndex = maxIdx * 0.5 + 0.5;
+    return angleIndex;
+}
+
+VectorI computeAngleTable(int n) {
+    VectorI result(n * n);
+
+    auto start = startIndex(n);
+    for (int i = 0; i < n; i++) {
+        int rowStart = (start + i) % n;
+        for (int j = 0; j < n; j++) {
+            int column = (rowStart - j) % n;
+            if (column < 0)
+                column += n;
+
+            result[ i * n + j ] = column;
+        }
+    }
 
     return result;
 }

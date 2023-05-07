@@ -125,9 +125,9 @@ public:
 struct Feature {
 public:
     VectorI refInd;
-    VectorF alphaAngle;
+    VectorI alphaAngle;
 
-    void push_back(uint32_t index, float angle);
+    void push_back(uint32_t index, uint32_t angle);
 };
 
 struct Candidate {
@@ -149,6 +149,7 @@ public:
     PointCloud reSampledModel;
 
     gtl::flat_hash_map<uint32_t, Feature> hashTable;
+    VectorI                               angleTable;
 };
 
 struct Pose {

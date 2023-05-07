@@ -30,6 +30,9 @@ void serialize(std::ostream *os, const std::vector<Eigen::Vector3f> &val);
 void deserialize(std::istream *is, PointCloud &val);
 void serialize(std::ostream *os, const PointCloud &val);
 
+void deserialize(std::istream *is, VectorI &val);
+void serialize(std::ostream *os, const VectorI &val);
+
 void deserialize(std::istream *is, Feature &val);
 void serialize(std::ostream *os, const Feature &val);
 

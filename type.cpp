@@ -70,7 +70,7 @@ Pose::Pose(float votes)
     , numVotes(votes) {
 }
 
-void Feature::push_back(uint32_t index, float angle) {
+void Feature::push_back(uint32_t index, uint32_t angle) {
     refInd.push_back(index);
     alphaAngle.push_back(angle);
 }
