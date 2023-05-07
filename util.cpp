@@ -637,8 +637,7 @@ std::vector<int> createTable(int n, float model) {
 }
 
 void computeVote(VectorI &accumulator, const VectorI &id, const VectorI &angle, VectorI &idxAngle,
-                 uint32_t alphaScene, int maxIdx, int accElementSize, VectorI &angleTable) {
-    uint32_t angleNum = maxIdx + 1;
+                 uint32_t alphaScene, uint32_t angleNum, int accElementSize, const VectorI &angleTable) {
     auto     vNum     = xsimd::broadcast(angleNum);
     auto     vScene   = xsimd::broadcast(alphaScene);
 

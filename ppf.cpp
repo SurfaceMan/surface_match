@@ -285,8 +285,6 @@ void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
         if (searched < voteThreshold)
             continue;
 
-        // auto px = xsimd::gather(scene.point.x.data(), )
-
         auto    rows = searched - 1;
         VectorF px(rows);
         VectorF py(rows);
@@ -323,7 +321,7 @@ void Detector::matchScene(ppf::PointCloud *scene_, std::vector<float> &poses,
                 continue;
 
             computeVote(accumulator, iter->second.refInd, iter->second.alphaAngle, idxAngle,
-                        alphaScene, maxAngleIndex, accElementSize, angleTable);
+                        alphaScene, angleNum, accElementSize, angleTable);
         }
 
         // [4]nms

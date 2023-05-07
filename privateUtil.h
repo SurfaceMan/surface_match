@@ -104,7 +104,8 @@ inline Eigen::Matrix4f xRotMat(float angle) {
 std::vector<int> createTable(int n, float model);
 
 void computeVote(VectorI &accumulator, const VectorI &id, const VectorI &angle, VectorI &idxAngle,
-                 uint32_t alphaScene, int maxId, int accElementSize, VectorI &angleTable);
+                 uint32_t alphaScene, uint32_t angleNum, int accElementSize,
+                 const VectorI &angleTable);
 
 bool nms(Pose &target, const VectorI &accumulator, float voteThreshold, int refNum, int angleNum,
          int accElementSize, int maxAngleIndex, const PointCloud &modelSampled,
