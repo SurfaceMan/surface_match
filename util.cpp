@@ -7,7 +7,6 @@
 #include <Eigen/Geometry>
 
 #include <algorithm>
-#include <fstream>
 #include <random>
 
 #include <cmath>
@@ -615,27 +614,6 @@ bool comparePose(const Pose &p1, const Pose &p2, float distanceThreshold, float 
     return (d < distanceThreshold && phi < angleThreshold);
 }
 
-std::vector<int> createTable(int n, float model) {
-    std::vector<int> idx(n);
-
-    auto maxIdx = n - 1;
-    for (int i = 0; i < n; i++) {
-        float scene = -M_PI + M_2PI * float(i) / float(n);
-        auto  angle = (model - scene);
-
-        if (angle > M_PI)
-            angle -= M_2PI;
-        if (angle < -M_PI)
-            angle += M_2PI;
-
-        int angleIndex = floor(maxIdx * (angle / M_2PI + 0.5f) + 0.5);
-
-        idx[ i ] = angleIndex;
-    }
-
-    return idx;
-}
-
 void computeVote(VectorI &accumulator, const VectorI &id, const VectorI &angle, VectorI &idxAngle,
                  uint32_t alphaScene, uint32_t angleNum, int accElementSize, const VectorI &angleTable) {
     auto     vNum     = xsimd::broadcast(angleNum);
@@ -743,9 +721,9 @@ bool icp(float &score, Eigen::Matrix4f &pose, const ICP &icpAlign, KDTree &scene
 
     pose = refined.pose;
     sceneKdtree.restore();
-    auto inlinerCount =
+    auto inlineCount =
         inliner(transformPointCloud(model, pose, false), sceneKdtree, poseRefScoringDist);
-    score = inlinerCount / float(model.point.size());
+    score = inlineCount / float(model.point.size());
     if (score > 1.f)
         score = 1.f;
 
@@ -1161,7 +1139,7 @@ VectorI computeAlpha(Eigen::Matrix4f &rt, const VectorF &p2x, const VectorF &p2y
 
 int startIndex(int n) {
     auto maxIdx     = n - 1;
-    int  angleIndex = maxIdx * 0.5 + 0.5;
+    int  angleIndex = static_cast<double>(maxIdx)  * 0.5 + 0.5;
     return angleIndex;
 }
 
