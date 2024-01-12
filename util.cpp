@@ -107,7 +107,7 @@ std::vector<int> removeNan(const ppf::PointCloud &pc, bool checkNormal) {
 std::vector<std::size_t> samplePointCloud(const KDTree &tree, float sampleStep,
                                           std::vector<int> *indicesOfIndices) {
 
-    auto                     size = tree.index->vAcc.size();
+    auto                     size = tree.index->vAcc_.size();
     std::vector<bool>        keep(tree.m_data.size(), true);
     auto                     radius = sampleStep * sampleStep;
     std::vector<std::size_t> result;
@@ -116,7 +116,7 @@ std::vector<std::size_t> samplePointCloud(const KDTree &tree, float sampleStep,
 
 #pragma omp parallel for schedule(static)
     for (int i = 0; i < size; i++) {
-        auto index = tree.index->vAcc[ i ];
+        auto index = tree.index->vAcc_[ i ];
         if (index == nanoflann::INVALID_INDEX)
             continue;
 
@@ -128,9 +128,9 @@ std::vector<std::size_t> samplePointCloud(const KDTree &tree, float sampleStep,
             (*indicesOfIndices)[ i ] = index;
 
         auto                                  &point = tree.m_data[ index ];
-        std::vector<std::pair<int, float>>     indices;
+        std::vector<nanoflann::ResultItem<int, float>>     indices;
         nanoflann::RadiusResultSet<float, int> resultSet(radius, indices);
-        tree.index->findNeighbors(resultSet, &point[ 0 ], nanoflann::SearchParams(32, 0, false));
+        tree.index->findNeighbors(resultSet, &point[ 0 ], nanoflann::SearchParameters(0, false));
         for (auto &[ idx, dist ] : indices)
             keep[ idx ] = false;
     }
@@ -354,9 +354,9 @@ void estimateNormalMLS(ppf::PointCloud &pc, const std::vector<std::size_t> &indi
         auto &point  = pc.point[ idx ];
 
         // neighbour
-        std::vector<std::pair<int, float>>     indices;
+        std::vector<nanoflann::ResultItem<int, float>>     indices;
         nanoflann::RadiusResultSet<float, int> resultSet(r2, indices);
-        kdtree.index->findNeighbors(resultSet, &point[ 0 ], nanoflann::SearchParams(32, 0, false));
+        kdtree.index->findNeighbors(resultSet, &point[ 0 ], nanoflann::SearchParameters(0, false));
         if (indices.size() < 3)
             continue;
 
@@ -615,7 +615,7 @@ void findClosestPoint(const KDTree &kdtree, const PointCloud &srcPC, std::vector
         std::vector<float>             dists(numResult);
         nanoflann::KNNResultSet<float> resultSet(numResult);
         resultSet.init(&indexes[ 0 ], &dists[ 0 ]);
-        kdtree.index->findNeighbors(resultSet, &point[ 0 ], nanoflann::SearchParams());
+        kdtree.index->findNeighbors(resultSet, &point[ 0 ]);
 
         indicesTmp[ i ]   = indexes[ 0 ];
         distancesTmp[ i ] = dists[ 0 ];

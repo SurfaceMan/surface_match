@@ -269,9 +269,9 @@ void Detector::matchScene(const ppf::PointCloud &scene_, std::vector<Eigen::Matr
             continue;
 
         //[3] vote
-        std::vector<std::pair<int, float>> indices;
+        std::vector<nanoflann::ResultItem<int, float>> indices;
         auto searched = sceneKdtree.index->radiusSearch(&p1[ 0 ], squaredDiameter, indices,
-                                                        nanoflann::SearchParams(32, 0, false));
+                                                        nanoflann::SearchParameters(0, false));
         if (searched < voteThreshold)
             continue;
 

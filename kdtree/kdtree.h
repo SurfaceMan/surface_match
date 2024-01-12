@@ -74,7 +74,7 @@ struct KDTreeVectorOfVectorsAdaptor {
             throw std::runtime_error("Data set dimensionality does not match the 'DIM' template "
                                      "argument");
         index = new index_t(static_cast<int>(dims), *this /* adaptor */,
-                            nanoflann::KDTreeSingleIndexAdaptorParams(leaf_max_size));
+                            nanoflann::KDTreeSingleIndexAdaptorParams(leaf_max_size, nanoflann::KDTreeSingleIndexAdaptorFlags::None, 0));
         // index->buildIndex();
     }
 
@@ -100,7 +100,7 @@ struct KDTreeVectorOfVectorsAdaptor {
                       num_t *out_distances_sq, const int nChecks_IGNORED = 10) const {
         nanoflann::KNNResultSet<num_t, IndexType> resultSet(num_closest);
         resultSet.init(out_indices, out_distances_sq);
-        index->findNeighbors(resultSet, query_point, nanoflann::SearchParams());
+        index->findNeighbors(resultSet, query_point, nanoflann::SearchParameters());
     }
 
     /** @name Interface expected by KDTreeSingleIndexAdaptor
@@ -144,16 +144,16 @@ struct KDTreeVectorOfVectorsAdaptor {
     }
 
     void reduce(std::vector<int> indices) {
-        if (indices.size() != index->vAcc.size())
+        if (indices.size() != index->vAcc_.size())
             throw std::runtime_error("Unmatched indices size");
-        vAccTmp     = std::move(index->vAcc);
-        index->vAcc = std::move(indices);
+        vAccTmp     = std::move(index->vAcc_);
+        index->vAcc_ = std::move(indices);
     }
 
     void restore() {
         if (vAccTmp.empty())
             return;
-        index->vAcc = std::move(vAccTmp);
+        index->vAcc_ = std::move(vAccTmp);
     }
 
     /** @} */
